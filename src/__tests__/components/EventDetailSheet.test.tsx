@@ -13,7 +13,7 @@ const event: TripEvent = {
   notes: '',
   sort_order: 0,
   image_url: 'https://cdn.example.com/shurijo.jpg',
-  link_url: 'https://oki-park.jp/shurijo/',
+  link_urls: ['https://oki-park.jp/shurijo/'],
 }
 
 describe('EventDetailSheet', () => {
@@ -50,15 +50,22 @@ describe('EventDetailSheet', () => {
     expect(screen.getByText('那霸市')).toBeInTheDocument()
   })
 
-  it('shows link button when link_url present', () => {
+  it('shows a link button labelled with the host', () => {
     render(<EventDetailSheet members={[]} open={true} event={event} onClose={() => {}} onEdit={() => {}} />)
-    expect(screen.getByText('前往官網')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '前往 oki-park.jp' })).toHaveAttribute('href', 'https://oki-park.jp/shurijo/')
   })
 
-  it('hides link button when no link_url', () => {
-    const noLink = { ...event, link_url: null }
+  it('shows one button per link, without the www prefix', () => {
+    const twoLinks = { ...event, link_urls: ['https://oki-park.jp/shurijo/', 'https://www.tabelog.com/x'] }
+    render(<EventDetailSheet members={[]} open={true} event={twoLinks} onClose={() => {}} onEdit={() => {}} />)
+    expect(screen.getByRole('link', { name: '前往 oki-park.jp' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '前往 tabelog.com' })).toHaveAttribute('href', 'https://www.tabelog.com/x')
+  })
+
+  it('hides link buttons when there are no links', () => {
+    const noLink = { ...event, link_urls: [] }
     render(<EventDetailSheet members={[]} open={true} event={noLink} onClose={() => {}} onEdit={() => {}} />)
-    expect(screen.queryByText('前往官網')).toBeNull()
+    expect(screen.queryByText(/^前往/)).toBeNull()
   })
 
   it('calls onEdit when edit button clicked', () => {

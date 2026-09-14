@@ -37,7 +37,7 @@ describe('EventCard', () => {
 const eventWithImage: TripEvent = {
   ...sharedEvent,
   image_url: 'https://cdn.example.com/img.jpg',
-  link_url: 'https://example.com',
+  link_urls: ['https://example.com'],
 }
 
 describe('EventCard with image', () => {

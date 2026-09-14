@@ -14,6 +14,15 @@ interface Props {
   hideEdit?: boolean
 }
 
+/** "前往 oki-park.jp": the host tells several links apart without a label field. */
+function linkLabel(url: string): string {
+  try {
+    return `前往 ${new URL(url).hostname.replace(/^www\./, '')}`
+  } catch {
+    return url
+  }
+}
+
 export function EventDetailSheet({ open, event, members, onClose, onEdit, hideEdit }: Props) {
   const [zoom, setZoom] = useState(false)
   const [imgError, setImgError] = useState(false)
@@ -110,15 +119,20 @@ export function EventDetailSheet({ open, event, members, onClose, onEdit, hideEd
             </p>
           )}
 
-          {event.link_url && (
-            <a
-              href={event.link_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 w-full bg-bg text-primary rounded-[10px] py-2.5 text-sm font-semibold"
-            >
-              前往官網
-            </a>
+          {!!event.link_urls?.length && (
+            <div className="flex flex-col gap-2">
+              {event.link_urls.map((url, i) => (
+                <a
+                  key={i}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full truncate text-center bg-bg text-primary rounded-[10px] px-3 py-2.5 text-sm font-semibold"
+                >
+                  {linkLabel(url)}
+                </a>
+              ))}
+            </div>
           )}
 
           {!hideEdit && (

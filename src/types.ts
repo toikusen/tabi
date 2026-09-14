@@ -21,7 +21,8 @@ export interface TripEvent {
   sort_order: number
   fork_items?: ForkItem[]
   image_url?: string | null
-  link_url?: string | null
+  /** http(s) only (migration 014) */
+  link_urls?: string[]
 }
 
 export interface Day {

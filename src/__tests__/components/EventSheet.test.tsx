@@ -260,15 +260,47 @@ describe('EventSheet', () => {
     expect(screen.getByPlaceholderText('https://...')).toBeInTheDocument()
   })
 
-  it('pre-fills link_url from existing event', () => {
-    const eventWithLink = {
+  it('pre-fills every link from existing event', () => {
+    const eventWithLinks = {
       ...sharedEvent,
-      link_url: 'https://oki-park.jp',
+      link_urls: ['https://oki-park.jp', 'https://tabelog.com/okinawa'],
     }
     render(
-      <EventSheet open={true} event={eventWithLink} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={() => {}} />
+      <EventSheet open={true} event={eventWithLinks} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={() => {}} />
     )
-    expect(screen.getByDisplayValue('https://oki-park.jp')).toBeInTheDocument()
+    expect(screen.getByLabelText('連結 1')).toHaveValue('https://oki-park.jp')
+    expect(screen.getByLabelText('連結 2')).toHaveValue('https://tabelog.com/okinawa')
+  })
+
+  it('adds and removes link rows', () => {
+    render(
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
+    )
+    // A single row has nothing to remove; clearing it is enough.
+    expect(screen.queryByLabelText('移除連結 1')).toBeNull()
+
+    fireEvent.click(screen.getByText('＋ 新增連結'))
+    expect(screen.getByLabelText('連結 2')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('移除連結 2'))
+    expect(screen.queryByLabelText('連結 2')).toBeNull()
+  })
+
+  it('saves only the non-blank http(s) links, trimmed', async () => {
+    render(
+      <EventSheet open={true} event={sharedEvent} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={() => {}} />
+    )
+    fireEvent.change(screen.getByLabelText('連結 1'), { target: { value: ' https://a.jp ' } })
+    fireEvent.click(screen.getByText('＋ 新增連結'))
+    fireEvent.click(screen.getByText('＋ 新增連結'))
+    fireEvent.click(screen.getByText('＋ 新增連結'))
+    fireEvent.change(screen.getByLabelText('連結 2'), { target: { value: 'javascript:alert(1)' } })
+    fireEvent.change(screen.getByLabelText('連結 4'), { target: { value: 'http://b.jp' } })
+    fireEvent.click(screen.getByText('儲存'))
+
+    await waitFor(() =>
+      expect(updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({ link_urls: ['https://a.jp', 'http://b.jp'] }))
+    )
   })
 
   it('shows existing image preview thumbnail', () => {

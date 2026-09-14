@@ -33,10 +33,9 @@ const TIME_PRESETS = [
   { label: '整天', start: '09:00', end: '21:00' },
 ]
 
-function sanitizeLinkUrl(url: string): string | null {
-  if (!url) return null
-  return /^https?:\/\//i.test(url) ? url : null
-}
+/** Keeps only http(s) links; blank rows and anything else are dropped. */
+const cleanLinks = (links: string[]): string[] =>
+  links.map((l) => l.trim()).filter((l) => /^https?:\/\//i.test(l))
 
 export function EventSheet({ open, event, dayId, tripId, events, members = [], days = [], onClose }: Props) {
   const isEdit = event !== null
@@ -50,7 +49,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   const [forks, setForks] = useState<ForkItem[]>([emptyFork(), emptyFork()])
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [linkUrl, setLinkUrl] = useState('')
+  const [links, setLinks] = useState<string[]>([''])
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -78,7 +77,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setForks(items.length >= 2 ? items : [items[0] ?? emptyFork(), items[1] ?? emptyFork()])
     setImageFile(null)
     setImageUrl(event?.image_url ?? null)
-    setLinkUrl(event?.link_url ?? '')
+    setLinks(event?.link_urls?.length ? event.link_urls : [''])
     setTargetDayId(dayId)
     setGuestGroup(null)
     // members stays out: its refetch after ＋ 旅伴 must not wipe the form mid-edit
@@ -167,8 +166,8 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
         sort_order: isEdit ? event!.sort_order : events.length,
       }
       const data: Omit<TripEvent, 'id'> = type === 'shared'
-        ? { ...base, title, location, notes, image_url: resolvedImageUrl, link_url: sanitizeLinkUrl(linkUrl) }
-        : { ...base, title: '', location: '', notes: '', fork_items: forks, image_url: resolvedImageUrl, link_url: sanitizeLinkUrl(linkUrl) }
+        ? { ...base, title, location, notes, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
+        : { ...base, title: '', location: '', notes: '', fork_items: forks, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
 
       if (isEdit) {
         const result = await updateEvent(event!.id, data)
@@ -512,16 +511,38 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
           )}
         </div>
 
-        {/* Link URL */}
+        {/* Links */}
         <div className="mb-4">
-          <label htmlFor="ev-link" className={labelCls}>景點連結（選填）</label>
-          <input
-            id="ev-link"
-            className={inputCls}
-            placeholder="https://..."
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-          />
+          <p className={labelCls}>景點連結（選填）</p>
+          <div className="flex flex-col gap-1.5">
+            {links.map((link, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <input
+                  type="url"
+                  className={inputCls}
+                  placeholder="https://..."
+                  aria-label={`連結 ${i + 1}`}
+                  value={link}
+                  onChange={(e) => setLinks(links.map((l, j) => j === i ? e.target.value : l))}
+                />
+                {links.length > 1 && (
+                  <button
+                    onClick={() => setLinks(links.filter((_, j) => j !== i))}
+                    aria-label={`移除連結 ${i + 1}`}
+                    className="shrink-0 w-11 h-11 -my-1 -mr-1 flex items-center justify-center text-text-label"
+                  >
+                    <Icon name="close" size={14} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => setLinks([...links, ''])}
+            className="mt-1.5 w-full border border-dashed border-icon-muted rounded-[8px] py-2 text-xs font-semibold text-primary"
+          >
+            ＋ 新增連結
+          </button>
         </div>
 
         <div className="sticky bottom-0 bg-white pt-2 pb-4 -mb-4">
