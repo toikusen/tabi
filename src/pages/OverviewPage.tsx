@@ -15,6 +15,13 @@ interface Picked {
 }
 
 /**
+ * A day column's content width (its cell adds px-1): a third of the scroller,
+ * less a sliver so the fourth day peeks in and the row reads as scrollable.
+ * Never under 7.5rem, the narrowest that still fits "09:20–12:50".
+ */
+const COLUMN_WIDTH = 'w-[max(7.5rem,calc((100cqw_-_0.75rem)/3_-_0.5rem))]'
+
+/**
  * The whole trip on one screen: a column per day, and rows for 早 / 午 / 晚 so
  * the same meal lines up across days. A table because its rows already share
  * one height across every column — that is the alignment.
@@ -61,7 +68,7 @@ export function OverviewPage() {
       </header>
 
       <main className="flex-1 py-4">
-        <div ref={scrollRef} className="overflow-x-auto px-3 [scrollbar-width:none]">
+        <div ref={scrollRef} className="@container overflow-x-auto px-3 [scrollbar-width:none]">
           <table className="border-collapse">
             <thead>
               <tr>
@@ -77,13 +84,13 @@ export function OverviewPage() {
                       {/* Width lives on the content, not the cell: an auto-layout
                           table treats a cell width as a hint and lets the longest
                           nowrap title stretch the column. */}
-                      <span className={`block w-[7.5rem] rounded-[10px] px-2 py-1.5 ${isToday ? 'bg-primary text-white' : 'bg-white text-text-strong'}`}>
+                      <span className={`block ${COLUMN_WIDTH} rounded-[10px] px-2 py-1.5 ${isToday ? 'bg-primary text-white' : 'bg-white text-text-strong'}`}>
                         <span className="block text-[12px] font-extrabold whitespace-nowrap">{fmtMD(day.date)}</span>
                         {/* One titled day gives every header a title line, so the
                             date pills stay one height and the dates stay level. */}
                         {days.some((d) => d.label) && (
                           <span className={`block text-[11px] font-semibold truncate ${isToday ? 'text-white' : 'text-primary'}`}>
-                            {day.label || ' '}
+                            {day.label || '\u00a0'}
                           </span>
                         )}
                       </span>
@@ -101,7 +108,7 @@ export function OverviewPage() {
                       // 早 / 午 / 晚 unlabeled: a faint dashed rule is the only boundary
                       className={`px-1 py-2 align-top ${band ? 'border-t border-dashed border-icon-muted' : ''}`}
                     >
-                      <div className="flex flex-col gap-1 w-[7.5rem]">
+                      <div className={`flex flex-col gap-1 ${COLUMN_WIDTH}`}>
                         {bandsByDay[i][band].map((event) => (
                           <button
                             key={event.id}
@@ -120,7 +127,8 @@ export function OverviewPage() {
                               />
                             )}
                             <span className="min-w-0 flex-1">
-                              <span className="block text-[12px] font-semibold text-text-strong truncate">
+                              {/* No `block` here: it would override line-clamp's -webkit-box and undo the clamp */}
+                              <span className="text-[12px] font-semibold text-text-strong line-clamp-2 break-words">
                                 {event.type === 'fork' ? '分頭行動' : event.title}
                               </span>
                               {(event.time_start || event.time_end) && (
