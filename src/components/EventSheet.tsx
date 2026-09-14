@@ -223,25 +223,30 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     'w-full border border-border rounded-[8px] px-3 py-2 text-sm text-text-strong bg-white focus:outline-none focus:border-primary'
   const labelCls = 'text-[11px] font-semibold text-text-label mb-1 block'
 
+  // iOS WebKit forces box-sizing: content-box on time inputs, so w-full plus
+  // padding overflows into the neighbouring field. Stretching in a flex column
+  // sizes the border box instead.
+  const timeInputCls = `${inputCls} !w-auto`
+
   const timeFields = (
     <>
       <div className="flex gap-2 mb-1.5">
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           <label htmlFor="ev-time-start" className={labelCls}>開始</label>
           <input
             id="ev-time-start"
             type="time"
-            className={inputCls}
+            className={timeInputCls}
             value={timeStart}
             onChange={(e) => setTimeStart(e.target.value)}
           />
         </div>
-        <div className="flex-1">
+        <div className="flex-1 flex flex-col">
           <label htmlFor="ev-time-end" className={labelCls}>結束</label>
           <input
             id="ev-time-end"
             type="time"
-            className={inputCls}
+            className={timeInputCls}
             value={timeEnd}
             onChange={(e) => setTimeEnd(e.target.value)}
           />
