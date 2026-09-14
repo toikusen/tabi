@@ -137,4 +137,21 @@ describe('TimelinePage', () => {
     await userEvent.click(screen.getByRole('button', { name: '旅程設定' }))
     expect(screen.getByTestId('settings-page')).toBeInTheDocument()
   })
+
+  it('puts each day title on its date chip, falling back to the weekday', () => {
+    mockUseTrip.mockReturnValue({
+      trip: { id: 't1', name: '東京', owner_email: 'sei@test.com', members: [], start_date: '2026-09-14', end_date: '2026-09-15' },
+      days: [
+        { id: 'd1', date: '2026-09-14', label: '飛行日', sort_order: 0 },
+        { id: 'd2', date: '2026-09-15', label: '', sort_order: 1 },
+      ],
+      eventsByDay: {},
+      loading: false,
+    })
+
+    renderAt('/trips/t1')
+
+    expect(screen.getByRole('button', { name: '9/14 飛行日' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '9/15 二' })).toBeInTheDocument()
+  })
 })

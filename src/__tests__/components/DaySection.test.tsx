@@ -72,6 +72,45 @@ describe('DaySection label editing', () => {
     await waitFor(() => expect(toast).toHaveBeenCalledWith('標籤儲存失敗,請再試一次'))
     expect(screen.getByText('原本標籤')).toBeInTheDocument()
   })
+
+  it('edits the current label, not the one it was first rendered with', () => {
+    vi.mocked(updateDayLabel).mockClear()
+    const { rerender } = render(<DaySection day={{ ...day, label: '舊' }} tripId="t1" members={[]} events={[]} />)
+    // A tripmate renames the day; realtime pushes the new label in.
+    rerender(<DaySection day={{ ...day, label: '新宿' }} tripId="t1" members={[]} events={[]} />)
+
+    fireEvent.click(screen.getByText('新宿'))
+    const input = screen.getByLabelText('日期標籤')
+    expect(input).toHaveValue('新宿')
+    fireEvent.blur(input)
+
+    expect(updateDayLabel).not.toHaveBeenCalled()
+  })
+
+  it('discards the edit on Escape', () => {
+    vi.mocked(updateDayLabel).mockClear()
+    render(<DaySection day={{ ...day, label: '新宿' }} tripId="t1" members={[]} events={[]} />)
+
+    fireEvent.click(screen.getByText('新宿'))
+    const input = screen.getByLabelText('日期標籤')
+    fireEvent.change(input, { target: { value: '購物日' } })
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(screen.queryByLabelText('日期標籤')).toBeNull()
+    expect(updateDayLabel).not.toHaveBeenCalled()
+  })
+
+  it('saves the trimmed title on Enter from the empty state', () => {
+    vi.mocked(updateDayLabel).mockClear()
+    render(<DaySection day={day} tripId="t1" members={[]} events={[]} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '當天主題' }))
+    const input = screen.getByLabelText('日期標籤')
+    fireEvent.change(input, { target: { value: '  飛行日 ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    expect(updateDayLabel).toHaveBeenCalledWith('d1', '飛行日')
+  })
 })
 
 describe('DaySection route link', () => {

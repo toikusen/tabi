@@ -5,6 +5,8 @@ describe('dates', () => {
   it('formats YYYY-MM-DD as M/D (weekday)', () => {
     expect(fmtMD('2026-10-12')).toBe('10/12 (一)')
     expect(fmtChip('2026-10-12')).toBe('10/12 一')
+    // A day title takes the weekday's place on the chip
+    expect(fmtChip('2026-10-12', '飛行日')).toBe('10/12 飛行日')
   })
 
   it('formats ranges with year only when needed', () => {

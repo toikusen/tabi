@@ -38,7 +38,6 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailEvent, setDetailEvent] = useState<TripEvent | null>(null)
   const [editingLabel, setEditingLabel] = useState(false)
-  const [labelDraft, setLabelDraft] = useState(day.label)
   const { setNodeRef, isOver } = useDroppable({ id: day.id })
 
   const now = useNow()
@@ -47,16 +46,15 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
   const nowIndex = isToday ? nowLineIndex(events, nowTime) : -1
   const routeUrl = dayRouteUrl(events.map((e) => e.location))
 
-  const handleLabelBlur = async () => {
+  /** The title input is uncontrolled and mounts fresh on every edit, so it
+   *  always starts from the live label — a tripmate's rename that arrived
+   *  meanwhile is never written back over. */
+  const saveLabel = async (value: string) => {
     setEditingLabel(false)
-    if (labelDraft !== day.label) {
-      const previous = day.label
-      const result = await updateDayLabel(day.id, labelDraft)
-      if (!result.ok) {
-        setLabelDraft(previous)
-        toast('標籤儲存失敗,請再試一次')
-      }
-    }
+    const label = value.trim()
+    if (label === day.label) return
+    const result = await updateDayLabel(day.id, label)
+    if (!result.ok) toast('標籤儲存失敗,請再試一次')
   }
 
   const openCreate = () => {
@@ -85,18 +83,30 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
           <input
             autoFocus
             aria-label="日期標籤"
-            className="text-xs text-text-secondary bg-transparent border-b border-primary outline-none flex-1 min-w-0"
-            value={labelDraft}
-            onChange={(e) => setLabelDraft(e.target.value)}
-            onBlur={handleLabelBlur}
-            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            placeholder="例:飛行日、新宿、購物日"
+            maxLength={12}
+            className="text-[13px] font-bold text-primary bg-transparent border-b border-primary outline-none flex-1 min-w-0 placeholder:font-normal placeholder:text-text-label"
+            defaultValue={day.label}
+            onBlur={(e) => saveLabel(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') e.currentTarget.value = day.label
+              if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur()
+            }}
           />
+        ) : day.label ? (
+          <button
+            onClick={() => setEditingLabel(true)}
+            className="text-[13px] font-bold text-primary min-w-0 truncate py-2 -my-2"
+          >
+            {day.label}
+          </button>
         ) : (
           <button
             onClick={() => setEditingLabel(true)}
-            className="text-xs text-text-label flex-1 min-w-0 text-left truncate"
+            className="shrink-0 flex items-center gap-0.5 text-xs text-text-label py-2 -my-2"
           >
-            {day.label || '點擊新增標籤'}
+            <Icon name="plus" size={12} />
+            當天主題
           </button>
         )}
         <div className="h-px flex-1 bg-border shrink-0" />

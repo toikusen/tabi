@@ -69,6 +69,20 @@ export function TimelinePage() {
     scrolledRef.current = scrollToNow()
   }, [days.length, scrollToNow])
 
+  const today = todayStr()
+  const highlighted = activeDay ?? days.find(d => d.date === today)?.id ?? null
+
+  /** Day titles widen the chips, so today's can start off-screen. Sets
+   *  scrollLeft instead of scrollIntoView, which would also move the page
+   *  while it is smooth-scrolling toward that day. */
+  const chipRowRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const row = chipRowRef.current
+    const chip = row?.querySelector<HTMLElement>('[aria-current]')
+    if (!row || !chip) return
+    row.scrollLeft = chip.offsetLeft - (row.clientWidth - chip.clientWidth) / 2
+  }, [highlighted, loading])
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -79,8 +93,6 @@ export function TimelinePage() {
 
   if (!trip) return <Navigate to="/" replace />
 
-  const today = todayStr()
-  const highlighted = activeDay ?? days.find(d => d.date === today)?.id ?? null
   const isOngoing = tripStatus(trip.start_date, trip.end_date) === 'ongoing'
 
   const scrollToDay = (dayId: string) => {
@@ -122,20 +134,22 @@ export function TimelinePage() {
         </div>
         {/* 日期膠囊列:點一下直達該天 */}
         {days.length > 1 && (
-          <div className="flex gap-1.5 px-4 pb-2.5 pt-1 overflow-x-auto [scrollbar-width:none]">
+          <div ref={chipRowRef} className="relative flex gap-1.5 px-4 pb-2.5 pt-1 overflow-x-auto [scrollbar-width:none]">
             {days.map((day) => {
               const isActive = day.id === highlighted
               return (
                 <button
                   key={day.id}
                   onClick={() => scrollToDay(day.id)}
-                  className={`shrink-0 rounded-full px-3.5 py-2 text-xs whitespace-nowrap ${
+                  aria-current={isActive || undefined}
+                  // ponytail: CSS cut keeps ~5 title chars; the full title lives in the day header
+                  className={`shrink-0 max-w-[8rem] truncate rounded-full px-3.5 py-2 text-xs whitespace-nowrap ${
                     isActive
                       ? 'bg-primary text-white font-bold'
                       : 'bg-bg text-text-label font-semibold'
                   }`}
                 >
-                  {fmtChip(day.date)}
+                  {fmtChip(day.date, day.label)}
                 </button>
               )
             })}

@@ -12,10 +12,10 @@ export function fmtMD(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()} (${WEEKDAYS[d.getDay()]})`
 }
 
-/** '2026-10-12' → '10/12 一' (date chips) */
-export function fmtChip(dateStr: string): string {
+/** '2026-10-12' → '10/12 一'; with a day title, '10/12 飛行日' (date chips) */
+export function fmtChip(dateStr: string, label = ''): string {
   const d = parse(dateStr)
-  return `${d.getMonth() + 1}/${d.getDate()} ${WEEKDAYS[d.getDay()]}`
+  return `${d.getMonth() + 1}/${d.getDate()} ${label || WEEKDAYS[d.getDay()]}`
 }
 
 /** Date range; year shown only when it disambiguates:
