@@ -20,6 +20,10 @@ const days = [
 const ev = (id: string, title: string, time_start: string, type: TripEvent['type'] = 'shared'): TripEvent => ({
   id, type, title, time_start, time_end: '', location: '', notes: '', sort_order: 0,
 })
+const fork = (id: string, time_start: string, groups: [person: string, title: string][]): TripEvent => ({
+  ...ev(id, '', time_start, 'fork'),
+  fork_items: groups.map(([person, title]) => ({ person, title, location: '', notes: '' })),
+})
 
 function renderOverview(eventsByDay: Record<string, TripEvent[]>) {
   mockUseTrip.mockReturnValue({ trip, days, eventsByDay, loading: false })
@@ -74,6 +78,31 @@ describe('OverviewPage', () => {
     expect(screen.getByRole('button', { name: /^拉麵/ })).toHaveTextContent(/^拉麵18:00$/)
     // No time at all: nothing but the title
     expect(screen.getByRole('button', { name: /^咖啡/ })).toHaveTextContent(/^咖啡$/)
+  })
+
+  it('offers no person filter when nobody splits up', () => {
+    renderOverview({ d1: [ev('l', '午餐', '12:30')] })
+    expect(screen.queryByRole('group', { name: '看誰的行程' })).not.toBeInTheDocument()
+  })
+
+  it('shows a picked person\'s own group in place of 分頭行動', async () => {
+    renderOverview({
+      d1: [ev('l', '午餐', '12:30'), fork('f1', '14:00', [['阿明', '美麗海水族館'], ['小華', '國際通']])],
+      d2: [fork('f2', '10:00', [['小華', '首里城'], ['阿傑', '海灘']])],
+    })
+    const filter = screen.getByRole('group', { name: '看誰的行程' })
+    // Everyone who ever splits off, once each, in order of appearance
+    expect(within(filter).getAllByRole('button').map((b) => b.textContent)).toEqual(['全部', '阿明', '小華', '阿傑'])
+    expect(within(filter).getByRole('button', { name: '全部' })).toHaveAttribute('aria-pressed', 'true')
+
+    await userEvent.click(within(filter).getByRole('button', { name: '阿明' }))
+
+    expect(within(filter).getByRole('button', { name: '阿明' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^美麗海水族館/ })).toBeInTheDocument()
+    expect(screen.queryByText('國際通')).not.toBeInTheDocument()
+    // Shared events stay, and a split 阿明 sits out still reads 分頭行動
+    expect(screen.getByRole('button', { name: /^午餐/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^分頭行動/ })).toBeInTheDocument()
   })
 
   it('marks today\'s column', () => {

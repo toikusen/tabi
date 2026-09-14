@@ -32,6 +32,8 @@ export function OverviewPage() {
   const { trip, days, eventsByDay, loading } = useTrip(tripId ?? null)
   const [detail, setDetail] = useState<Picked | null>(null)
   const [editing, setEditing] = useState<Picked | null>(null)
+  /** Whose group fork events show; '' is everyone. */
+  const [person, setPerson] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
   const today = todayStr()
 
@@ -55,6 +57,16 @@ export function OverviewPage() {
 
   const toTimeline = () => navigate(`/trips/${trip.id}`)
   const bandsByDay = days.map((day) => groupByBand(eventsByDay[day.id] ?? []))
+  const people = [...new Set(days.flatMap((day) =>
+    (eventsByDay[day.id] ?? []).flatMap((event) => (event.fork_items ?? []).map((item) => item.person))
+  ))]
+  // A name edited out of every group falls back to 全部
+  const picked = people.includes(person) ? person : ''
+  /** A fork event reads as the picked person's own group, or 分頭行動 when they are in none. */
+  const titleOf = (event: TripEvent) =>
+    event.type === 'fork'
+      ? (picked && event.fork_items?.find((item) => item.person === picked)?.title) || '分頭行動'
+      : event.title
 
   return (
     <div className="min-h-screen bg-bg flex flex-col max-w-lg mx-auto">
@@ -65,6 +77,23 @@ export function OverviewPage() {
           </button>
           <h1 className="text-base font-bold text-text-strong truncate">{trip.name}</h1>
         </div>
+        {people.length > 0 && (
+          <div role="group" aria-label="看誰的行程" className="flex gap-1.5 px-4 pb-2.5 pt-1 overflow-x-auto [scrollbar-width:none]">
+            {['', ...people].map((name) => (
+              <button
+                key={name}
+                onClick={() => setPerson(name)}
+                aria-pressed={name === picked}
+                // Same pill as the timeline's date chips
+                className={`shrink-0 max-w-[8rem] truncate rounded-full px-3.5 py-2 text-xs whitespace-nowrap ${
+                  name === picked ? 'bg-primary text-white font-bold' : 'bg-bg text-text-label font-semibold'
+                }`}
+              >
+                {name || '全部'}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
       <main className="flex-1 py-4">
@@ -129,7 +158,7 @@ export function OverviewPage() {
                             <span className="min-w-0 flex-1">
                               {/* No `block` here: it would override line-clamp's -webkit-box and undo the clamp */}
                               <span className="text-[12px] font-semibold text-text-strong line-clamp-2 break-words">
-                                {event.type === 'fork' ? '分頭行動' : event.title}
+                                {titleOf(event)}
                               </span>
                               {(event.time_start || event.time_end) && (
                                 // No spaces around the dash: a spaced range is wider than the column
