@@ -1,5 +1,30 @@
 import { describe, it, expect } from 'vitest'
-import { fmtMD, fmtChip, fmtRange, dayCount, daysUntil, tripStatus, todayStr, hhmm, sortTrips, mapsUrl, dayRouteUrl, nowLineIndex, scrollTargetEventId } from '../../lib/dates'
+import { fmtMD, fmtChip, fmtRange, dayCount, daysUntil, tripStatus, todayStr, hhmm, sortTrips, mapsUrl, dayRouteUrl, nowLineIndex, scrollTargetEventId, groupByBand } from '../../lib/dates'
+
+describe('groupByBand', () => {
+  it('splits a day at 11:00 and 17:00', () => {
+    const [am, mid, pm] = groupByBand([
+      { id: 'a', time_start: '10:59' },
+      { id: 'b', time_start: '11:00' },
+      { id: 'c', time_start: '16:59' },
+      { id: 'd', time_start: '17:00' },
+    ])
+    expect(am.map(e => e.id)).toEqual(['a'])
+    expect(mid.map(e => e.id)).toEqual(['b', 'c'])
+    expect(pm.map(e => e.id)).toEqual(['d'])
+  })
+
+  it('puts an event without a start time in the band of the one before it', () => {
+    const [am, mid, pm] = groupByBand([
+      { id: 'lead', time_start: '' },
+      { id: 'lunch', time_start: '12:30' },
+      { id: 'untimed', time_start: '' },
+    ])
+    expect(am.map(e => e.id)).toEqual(['lead'])
+    expect(mid.map(e => e.id)).toEqual(['lunch', 'untimed'])
+    expect(pm).toEqual([])
+  })
+})
 
 describe('dates', () => {
   it('formats YYYY-MM-DD as M/D (weekday)', () => {

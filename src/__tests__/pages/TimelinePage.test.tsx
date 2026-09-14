@@ -27,6 +27,7 @@ function renderAt(path: string) {
       <Routes>
         <Route path="/trips/:tripId" element={<TimelinePage />} />
         <Route path="/trips/:tripId/settings" element={<div data-testid="settings-page" />} />
+        <Route path="/trips/:tripId/overview" element={<div data-testid="overview-page" />} />
         <Route path="/" element={<div data-testid="trip-list" />} />
       </Routes>
     </MemoryRouter>
@@ -34,6 +35,19 @@ function renderAt(path: string) {
 }
 
 describe('TimelinePage', () => {
+  it('opens the overview from the 總覽 tab', async () => {
+    mockUseTrip.mockReturnValue({
+      trip: { id: 't1', name: '沖繩', owner_email: 'sei@test.com', members: [], start_date: '2026-08-01', end_date: '2026-08-02' },
+      days: [{ id: 'd1', date: '2026-08-01', label: '', sort_order: 0 }],
+      eventsByDay: {},
+      loading: false,
+    })
+
+    renderAt('/trips/t1')
+    await userEvent.click(screen.getByRole('button', { name: '總覽' }))
+    expect(screen.getByTestId('overview-page')).toBeInTheDocument()
+  })
+
   it('feeds the route param tripId into useTrip and renders the trip', () => {
     mockUseTrip.mockReturnValue({
       trip: { id: 't1', name: '沖繩 2026', owner_email: 'sei@test.com', members: [], start_date: '2026-08-01', end_date: '2026-08-02' },

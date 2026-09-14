@@ -197,6 +197,7 @@ export function TimelinePage() {
         todayDisabled={!isOngoing}
         onToday={scrollToNow}
         onTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onOverview={() => navigate(`/trips/${trip.id}/overview`)}
       />
 
       <InstallPrompt />

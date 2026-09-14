@@ -94,6 +94,20 @@ export function nowLineIndex(events: { time_start: string }[], now: string): num
   return index
 }
 
+/** Splits a day's events into 早 (before 11:00), 午 (before 17:00) and 晚 for
+ *  the overview, keeping list order within each band. The cut points fall in
+ *  the gaps of real trips, whose start times cluster at 9, 13 and 18.
+ *  An event without a start time joins the band of the one before it. */
+export function groupByBand<T extends { time_start: string }>(events: T[]): [T[], T[], T[]] {
+  const bands: [T[], T[], T[]] = [[], [], []]
+  let band = 0
+  for (const e of events) {
+    if (e.time_start) band = e.time_start < '11:00' ? 0 : e.time_start < '17:00' ? 1 : 2
+    bands[band].push(e)
+  }
+  return bands
+}
+
 /** The event to bring into view on open: the first one today that has not ended.
  *  Falls back to today's first event; null when today is outside the trip. */
 export function scrollTargetEventId({ days, eventsByDay, now }: {

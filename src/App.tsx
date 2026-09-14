@@ -7,6 +7,7 @@ import { NewTripPage } from './pages/NewTripPage'
 import { TripListPage } from './pages/TripListPage'
 import { JoinPage } from './pages/JoinPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { OverviewPage } from './pages/OverviewPage'
 import { Toast } from './components/Toast'
 
 const PENDING_JOIN_KEY = 'pendingJoinTripId'
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="/trips/new" element={<NewTripPage />} />
         <Route path="/trips/:tripId" element={<TimelinePage />} />
         <Route path="/trips/:tripId/settings" element={<SettingsPage />} />
+        <Route path="/trips/:tripId/overview" element={<OverviewPage />} />
         <Route path="/join/:tripId" element={<JoinPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
