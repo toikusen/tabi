@@ -57,10 +57,23 @@ describe('OverviewPage', () => {
   it('opens an event\'s details in place instead of leaving the overview', async () => {
     renderOverview({ d1: [ev('l', '午餐', '12:30')] })
 
-    await userEvent.click(screen.getByRole('button', { name: '午餐' }))
+    await userEvent.click(screen.getByRole('button', { name: /^午餐/ }))
 
     expect(screen.getByRole('dialog', { name: '行程詳情' })).toBeInTheDocument()
     expect(screen.queryByTestId('timeline-page')).not.toBeInTheDocument()
+  })
+
+  it('shows each event\'s time under its title', () => {
+    renderOverview({
+      d1: [{ ...ev('l', '午餐', '12:30'), time_end: '13:30' }],
+      d2: [ev('r', '拉麵', '18:00'), ev('c', '咖啡', '')],
+    })
+
+    expect(within(screen.getByRole('button', { name: /^午餐/ })).getByText('12:30–13:30')).toBeInTheDocument()
+    // No end time: the start alone
+    expect(screen.getByRole('button', { name: /^拉麵/ })).toHaveTextContent(/^拉麵18:00$/)
+    // No time at all: nothing but the title
+    expect(screen.getByRole('button', { name: /^咖啡/ })).toHaveTextContent(/^咖啡$/)
   })
 
   it('marks today\'s column', () => {

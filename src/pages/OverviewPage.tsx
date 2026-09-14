@@ -106,20 +106,29 @@ export function OverviewPage() {
                           <button
                             key={event.id}
                             onClick={() => setDetail({ event, dayId: day.id })}
-                            className="w-full flex items-center gap-1.5 bg-white rounded-[8px] px-2 py-2 shadow-card text-left active:opacity-70 transition-opacity"
+                            className="w-full flex items-start gap-1.5 bg-white rounded-[8px] px-2 py-1.5 shadow-card text-left active:opacity-70 transition-opacity"
                           >
+                            {/* mt-0.5 centres the 14px icon on the title's 18px line */}
                             {event.type === 'fork' ? (
-                              <Icon name="users" size={14} className="shrink-0 text-primary" />
+                              <Icon name="users" size={14} className="shrink-0 mt-0.5 text-primary" />
                             ) : (
                               <img
                                 src={CATEGORY_IMAGE[eventCategory(event.title)]}
                                 alt=""
                                 aria-hidden="true"
-                                className="w-3.5 h-3.5 shrink-0"
+                                className="w-3.5 h-3.5 shrink-0 mt-0.5"
                               />
                             )}
-                            <span className="text-[12px] font-semibold text-text-strong truncate">
-                              {event.type === 'fork' ? '分頭行動' : event.title}
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[12px] font-semibold text-text-strong truncate">
+                                {event.type === 'fork' ? '分頭行動' : event.title}
+                              </span>
+                              {(event.time_start || event.time_end) && (
+                                // No spaces around the dash: a spaced range is wider than the column
+                                <span className="block text-[11px] font-mono tabular-nums text-text-label truncate">
+                                  {[event.time_start, event.time_end].filter(Boolean).join('–')}
+                                </span>
+                              )}
                             </span>
                           </button>
                         ))}
