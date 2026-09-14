@@ -24,8 +24,8 @@ describe('DaySection now line', () => {
     render(
       <DaySection day={day} tripId="t1" members={[]} events={[ev('b', '14:00'), ev('a', '09:00'), ev('c', '18:00')]} />
     )
-    // Accessible name includes the time prefix (e.g. "14:00 b"), so match on the trailing letter.
-    const cards = screen.getAllByRole('button', { name: /(?:^|\s)[abc]$/ })
+    // Accessible name includes the time suffix (e.g. "b 14:00"), so match on the leading letter.
+    const cards = screen.getAllByRole('button', { name: /^[abc](?:\s|$)/ })
     const line = screen.getByTestId('now-line')
     // The line sits between 'a' (started) and 'c' (not yet).
     expect(line.compareDocumentPosition(cards[1]) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy()

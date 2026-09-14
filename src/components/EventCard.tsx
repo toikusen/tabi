@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { TripEvent } from '../types'
 import { mapsUrl } from '../lib/dates'
-import { eventCategory } from '../lib/category'
+import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
 import { Icon } from './Icon'
 
 interface Props {
@@ -33,15 +33,21 @@ export function EventCard({ event, onClick }: Props) {
       <div className="flex items-start gap-2.5">
         {/* The row's visual anchor. Guessed from the title, so it is decorative
             only — the title right next to it always carries the real meaning. */}
-        <span className="mt-0.5 shrink-0 w-8 h-8 rounded-[9px] bg-bg-accent text-primary flex items-center justify-center">
-          <Icon name={eventCategory(event.title)} size={16} />
+        <span className="mt-0.5 shrink-0 w-8 h-8 rounded-[9px] bg-bg flex items-center justify-center">
+          <img
+            src={CATEGORY_IMAGE[eventCategory(event.title)]}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            className="w-[18px] h-[18px]"
+          />
         </span>
 
         <div className="flex-1 min-w-0">
-          {time && (
-            <p className="text-[11px] font-mono tabular-nums text-text-label mb-0.5">{time}</p>
-          )}
           <p className="text-[15px] font-semibold text-text-strong truncate">{event.title}</p>
+          {time && (
+            <p className="text-[11px] font-mono tabular-nums text-text-label mt-0.5">{time}</p>
+          )}
           {event.location && (
             <p className="text-[11.5px] text-text-secondary mt-0.5 flex items-center gap-1.5">
               <span className="truncate">{event.location}</span>

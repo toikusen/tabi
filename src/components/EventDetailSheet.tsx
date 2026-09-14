@@ -58,16 +58,16 @@ export function EventDetailSheet({ open, event, onClose, onEdit, hideEdit }: Pro
 
         <div className="px-4 pt-3 pb-6 flex flex-col gap-3 overflow-y-auto">
           <div>
+            <p className="text-[15px] font-bold text-text-strong">
+              {displayTitle}
+            </p>
             {(event.time_start || event.time_end) && (
-              <p className="text-xs text-text-label mb-1">
+              <p className="text-xs text-text-label mt-0.5">
                 {event.time_start && event.time_end
                   ? `${event.time_start} – ${event.time_end}`
                   : event.time_start || event.time_end}
               </p>
             )}
-            <p className="text-[15px] font-bold text-text-strong">
-              {displayTitle}
-            </p>
             {event.location && (
               <p className="text-xs text-text-secondary mt-0.5 flex items-center gap-1.5 flex-wrap">
                 <span>{event.location}</span>

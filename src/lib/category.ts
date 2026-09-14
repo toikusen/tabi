@@ -1,9 +1,25 @@
-import type { IconName } from '../components/Icon'
+// Twemoji 15.0.0 (@twemoji/svg), graphics CC-BY 4.0 — https://github.com/jdecked/twemoji
+// Bundled rather than native emoji so every OS draws the same glyph; each file
+// is under Vite's 4KB inline limit, so they ship inside the JS and work offline.
+// Picked for colour at 18px: 🍴 and 🚆 are grey-on-grey and blur into the tile.
+import food from '../assets/twemoji/1f35c.svg'
+import lodging from '../assets/twemoji/1f3e8.svg'
+import transport from '../assets/twemoji/1f697.svg'
+import sight from '../assets/twemoji/1f4f7.svg'
+import shopping from '../assets/twemoji/1f6cd.svg'
+import pin from '../assets/twemoji/1f4cd.svg'
 
-export type Category = Extract<
-  IconName,
-  'food' | 'lodging' | 'transport' | 'sight' | 'shopping' | 'pin'
->
+export type Category = 'food' | 'lodging' | 'transport' | 'sight' | 'shopping' | 'pin'
+
+/** 🍜 🏨 🚗 📷 🛍️ 📍 */
+export const CATEGORY_IMAGE: Record<Category, string> = {
+  food,
+  lodging,
+  transport,
+  sight,
+  shopping,
+  pin,
+}
 
 /**
  * First match wins, so order encodes precedence: a "飯店早餐" is a hotel stop

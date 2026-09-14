@@ -48,48 +48,6 @@ const GLYPHS = {
       <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
     </>
   ),
-
-  // Event categories — see lib/category.ts
-  /** A bowl, not cutlery: crossed fork-and-knife collapses into a blur at 16px. */
-  food: (
-    <>
-      <path d="M4 12h16a8 8 0 0 1-16 0z" />
-      <path d="M2.5 12h19" />
-      <path d="M9 8.5c0-1.6 1.5-1.6 1.5-3.2M14 8.5c0-1.6 1.5-1.6 1.5-3.2" />
-    </>
-  ),
-  lodging: (
-    <>
-      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-      <path d="M9 22V12h6v10" />
-    </>
-  ),
-  transport: (
-    <>
-      <rect x="5" y="3" width="14" height="14" rx="3" />
-      <path d="M5 10h14M8 21l2-4M16 21l-2-4" />
-    </>
-  ),
-  sight: (
-    <>
-      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3l2-3h6l2 3h3a2 2 0 0 1 2 2z" />
-      <circle cx="12" cy="13" r="4" />
-    </>
-  ),
-  shopping: (
-    <>
-      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
-      <path d="M3 6h18" />
-      <path d="M16 10a4 4 0 0 1-8 0" />
-    </>
-  ),
-  /** The neutral default: an unmatched title gets a place, not a wrong guess. */
-  pin: (
-    <>
-      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-      <circle cx="12" cy="10" r="3" />
-    </>
-  ),
 } as const
 
 export type IconName = keyof typeof GLYPHS
