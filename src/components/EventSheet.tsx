@@ -352,6 +352,11 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
                         aria-label={`第 ${i + 1} 組成員`}
                       >
                         <option value="">選擇成員</option>
+                        {/* A name from before members joined, or from before a rename, matches no
+                            member; without its own option the select silently shows 選擇成員 */}
+                        {item.person && !members.some((m) => (m.display_name || m.email) === item.person) && (
+                          <option value={item.person}>{item.person}</option>
+                        )}
                         {members.map((m) => (
                           <option key={m.email} value={m.display_name || m.email}>
                             {m.display_name || m.email}

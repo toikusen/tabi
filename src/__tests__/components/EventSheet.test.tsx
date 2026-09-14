@@ -103,6 +103,25 @@ describe('EventSheet', () => {
     expect(screen.getAllByText('Bob')).toHaveLength(2)
   })
 
+  it('keeps a fork group\'s saved person selected when no member goes by that name', () => {
+    const members = [{ email: 'a@test.com', display_name: 'Alice', avatar_url: '' }]
+    const forkEvent: TripEvent = {
+      ...sharedEvent,
+      type: 'fork',
+      title: '',
+      fork_items: [
+        { person: 'Alice', title: '水族館', location: '', notes: '' },
+        // Imported before members joined, or renamed since
+        { person: '同事', title: '國際通', location: '', notes: '' },
+      ],
+    }
+    render(
+      <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
+    )
+    expect(screen.getByLabelText('第 1 組成員')).toHaveValue('Alice')
+    expect(screen.getByLabelText('第 2 組成員')).toHaveValue('同事')
+  })
+
   it('adds a third fork group with ＋ 新增一組', () => {
     render(
       <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
