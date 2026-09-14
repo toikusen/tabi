@@ -71,15 +71,6 @@ describe('EventSheet', () => {
     expect(screen.queryByText('請輸入行程名稱')).toBeNull()
   })
 
-  it('fills times from a quick preset pill', () => {
-    render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
-    )
-    fireEvent.click(screen.getByText('早上'))
-    expect(screen.getByDisplayValue('09:00')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('12:00')).toBeInTheDocument()
-  })
-
   const members = [
     { email: 'a@test.com', display_name: 'Alice', avatar_url: '' },
     { email: 'b@test.com', display_name: 'Bob', avatar_url: '' },

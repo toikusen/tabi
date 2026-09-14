@@ -25,14 +25,6 @@ interface Props {
 
 const emptyFork = (): ForkItem => ({ emails: [], others: false, title: '', location: '', notes: '' })
 
-const TIME_PRESETS = [
-  { label: '早上', start: '09:00', end: '12:00' },
-  { label: '中午', start: '12:00', end: '13:30' },
-  { label: '下午', start: '13:30', end: '17:30' },
-  { label: '晚上', start: '18:00', end: '21:00' },
-  { label: '整天', start: '09:00', end: '21:00' },
-]
-
 /** Keeps only http(s) links; blank rows and anything else are dropped. */
 const cleanLinks = (links: string[]): string[] =>
   links.map((l) => l.trim()).filter((l) => /^https?:\/\//i.test(l))
@@ -230,7 +222,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
 
   const timeFields = (
     <>
-      <div className="flex gap-2 mb-1.5">
+      <div className="flex gap-2 mb-3">
         <div className="flex-1 flex flex-col">
           <label htmlFor="ev-time-start" className={labelCls}>開始</label>
           <input
@@ -251,24 +243,6 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
             onChange={(e) => setTimeEnd(e.target.value)}
           />
         </div>
-      </div>
-      {/* 時段快選:多數行程不需要精確到分鐘 */}
-      <div className="flex gap-1.5 mb-3 flex-wrap">
-        {TIME_PRESETS.map((p) => {
-          const active = timeStart === p.start && timeEnd === p.end
-          return (
-            <button
-              key={p.label}
-              onClick={() => { setTimeStart(p.start); setTimeEnd(p.end) }}
-              aria-pressed={active}
-              className={`text-xs font-semibold rounded-full px-3 py-1.5 ${
-                active ? 'bg-primary text-white' : 'bg-bg-accent text-primary'
-              }`}
-            >
-              {p.label}
-            </button>
-          )
-        })}
       </div>
     </>
   )
