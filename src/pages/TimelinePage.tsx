@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, Navigate } from 'react-router-dom'
 import {
-  DndContext, closestCenter, PointerSensor, KeyboardSensor, MeasuringStrategy,
+  DndContext, PointerSensor, KeyboardSensor, MeasuringStrategy,
   useSensor, useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
@@ -17,7 +17,7 @@ import { DaySection } from '../components/DaySection'
 import { WishlistSection } from '../components/WishlistSection'
 import { WISHLIST } from '../lib/db'
 import { useTripDnd } from '../hooks/useTripDnd'
-import type { EventsByDay } from '../lib/dnd'
+import { cardsOverContainers, type EventsByDay } from '../lib/dnd'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InviteCard } from '../components/InviteCard'
 
@@ -164,7 +164,7 @@ export function TimelinePage() {
             empty day droppable — its box only exists once the drag starts. */}
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={cardsOverContainers(byDay)}
           measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}

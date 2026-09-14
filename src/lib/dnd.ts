@@ -1,3 +1,4 @@
+import { closestCenter, type CollisionDetection } from '@dnd-kit/core'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { TripEvent } from '../types'
 
@@ -13,6 +14,20 @@ export function containerOf(byDay: EventsByDay, id: string): string | null {
   if (id in byDay) return id
   return Object.keys(byDay).find((key) => byDay[key].some((e) => e.id === id)) ?? null
 }
+
+/**
+ * closestCenter, minus every list that has cards. A day's box wraps its cards,
+ * so its centre sits among theirs and swallows the drop meant for the card
+ * beside it — and a drop on its own box is a no-op, so the card never moves.
+ * An empty day (or wishlist) keeps its box: it has nothing else to hit.
+ */
+export const cardsOverContainers =
+  (byDay: EventsByDay): CollisionDetection =>
+  (args) =>
+    closestCenter({
+      ...args,
+      droppableContainers: args.droppableContainers.filter((c) => !byDay[String(c.id)]?.length),
+    })
 
 export interface Move {
   byDay: EventsByDay

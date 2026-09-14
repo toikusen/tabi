@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { applyMove, containerOf, sameOrder, type EventsByDay } from '../../lib/dnd'
+import { applyMove, cardsOverContainers, containerOf, sameOrder, type EventsByDay } from '../../lib/dnd'
 import type { TripEvent } from '../../types'
 
 const ev = (id: string): TripEvent => ({
@@ -77,6 +77,36 @@ describe('applyMove across days', () => {
     const scheduled = applyMove(parked.byDay, 'a', 'd2')!
     expect(ids(scheduled.byDay, 'wishlist')).toEqual(['w'])
     expect(ids(scheduled.byDay, 'd2')).toEqual(['c', 'a'])
+  })
+})
+
+describe('cardsOverContainers', () => {
+  const rect = (top: number, height: number) =>
+    ({ top, left: 0, width: 300, height, bottom: top + height, right: 300 })
+
+  // d1 wraps cards a (0–72) and b (80–152); d3 is an empty day's drop hint.
+  const rects = {
+    d1: rect(0, 152), a: rect(0, 72), b: rect(80, 72),
+    d3: rect(200, 50),
+  }
+
+  /** Which droppable a 72px-tall dragged card resolves to with its top at `top`. */
+  const hit = (top: number) =>
+    cardsOverContainers(map())({
+      active: { id: 'a' },
+      collisionRect: rect(top, 72),
+      droppableRects: new Map(Object.entries(rects)),
+      droppableContainers: Object.keys(rects).map((id) => ({ id })),
+      pointerCoordinates: null,
+    } as never)[0]?.id
+
+  it('lands on the next card, not on the day box that shares its centre', () => {
+    // Past the midpoint of a and b, but closest to d1's centre (76).
+    expect(hit(45)).toBe('b')
+  })
+
+  it('still lets an empty day take the drop', () => {
+    expect(hit(190)).toBe('d3')
   })
 })
 
