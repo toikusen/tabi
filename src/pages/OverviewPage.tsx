@@ -79,9 +79,11 @@ export function OverviewPage() {
                           nowrap title stretch the column. */}
                       <span className={`block w-[7.5rem] rounded-[10px] px-2 py-1.5 ${isToday ? 'bg-primary text-white' : 'bg-white text-text-strong'}`}>
                         <span className="block text-[12px] font-extrabold whitespace-nowrap">{fmtMD(day.date)}</span>
-                        {day.label && (
+                        {/* One titled day gives every header a title line, so the
+                            date pills stay one height and the dates stay level. */}
+                        {days.some((d) => d.label) && (
                           <span className={`block text-[11px] font-semibold truncate ${isToday ? 'text-white' : 'text-primary'}`}>
-                            {day.label}
+                            {day.label || ' '}
                           </span>
                         )}
                       </span>

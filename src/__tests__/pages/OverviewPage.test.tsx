@@ -80,6 +80,29 @@ describe('OverviewPage', () => {
     expect(screen.getByTestId('timeline-page')).toBeInTheDocument()
   })
 
+  it('gives every date header the same height once any day has a title', () => {
+    const lineCount = (name: RegExp) =>
+      screen.getByRole('columnheader', { name }).firstElementChild!.children.length
+
+    // 10/12 is 飛行日, 10/13 has no title: both keep a title line
+    const { unmount } = renderOverview({})
+    expect(lineCount(/10\/12/)).toBe(2)
+    expect(lineCount(/10\/13/)).toBe(2)
+    unmount()
+
+    // No titles anywhere: no empty line to reserve
+    mockUseTrip.mockReturnValue({ trip, days: days.map(d => ({ ...d, label: '' })), eventsByDay: {}, loading: false })
+    render(
+      <MemoryRouter initialEntries={['/trips/t1/overview']}>
+        <Routes>
+          <Route path="/trips/:tripId/overview" element={<OverviewPage />} />
+        </Routes>
+      </MemoryRouter>
+    )
+    expect(lineCount(/10\/12/)).toBe(1)
+    expect(lineCount(/10\/13/)).toBe(1)
+  })
+
   it('redirects to / when the trip fails to load', () => {
     mockUseTrip.mockReturnValue({ trip: null, days: [], eventsByDay: {}, loading: false })
     render(
