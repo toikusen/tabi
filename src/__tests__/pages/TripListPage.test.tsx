@@ -85,17 +85,22 @@ describe('TripListPage', () => {
     expect(mockNavigate).toHaveBeenCalledWith('/trips/t1')
   })
 
-  it('shows countdown badge, companion count, and groups ended trips', async () => {
+  it('spells out the countdown, companion count, and groups ended trips', async () => {
     mockListMyTrips.mockResolvedValue([
       { id: 't1', name: '沖繩 2026', start_date: futureDate(10), end_date: futureDate(14), owner_email: 'sei@test.com', members },
       { id: 't2', name: '進行中旅程', start_date: futureDate(-1), end_date: futureDate(1), owner_email: 'sei@test.com', members },
       { id: 't3', name: '舊旅程', start_date: futureDate(-20), end_date: futureDate(-18), owner_email: 'sei@test.com', members },
+      { id: 't4', name: '明天旅程', start_date: futureDate(1), end_date: futureDate(2), owner_email: 'sei@test.com', members: [] },
     ])
 
     renderPage()
 
-    expect(await screen.findByText('D-10')).toBeInTheDocument()
-    expect(screen.getByText('進行中')).toBeInTheDocument()
+    const card = (name: string) => screen.getByRole('button', { name: new RegExp(name) })
+    await screen.findByText('沖繩 2026')
+    expect(card('沖繩 2026')).toHaveTextContent(/出發倒數\s*10 天/)
+    expect(card('進行中旅程')).toHaveTextContent(/旅行中\s*第 2 天/)
+    expect(card('明天旅程')).toHaveTextContent(/出發倒數\s*明天/)
+    expect(card('舊旅程')).not.toHaveTextContent(/出發倒數|旅行中/)
     expect(screen.getByText('已結束')).toBeInTheDocument()
     expect(screen.getAllByText('2 位旅伴')).toHaveLength(2) // ended trips hide companions
   })
@@ -151,6 +156,7 @@ describe('TripListPage', () => {
     renderPage()
 
     expect(await screen.findByText('快取旅程')).toBeInTheDocument()
+    expect(screen.getByText(/^2026\/8\/1 \(六\) – 8\/2 \(日\)/)).toBeInTheDocument()
     expect(screen.getByText('無法載入旅程列表,請檢查網路連線')).toBeInTheDocument()
   })
 
