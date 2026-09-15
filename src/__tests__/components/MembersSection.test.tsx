@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { MembersSection } from '../../components/MembersSection'
-import { addGuest, removeMember } from '../../lib/db'
+import { addGuest, mergeGuest, removeMember } from '../../lib/db'
 
 vi.mock('../../lib/db', () => ({
   addGuest: vi.fn().mockResolvedValue('guest:new'),
+  mergeGuest: vi.fn().mockResolvedValue(true),
   removeMember: vi.fn().mockResolvedValue(true),
 }))
 
@@ -49,5 +50,32 @@ describe('MembersSection', () => {
 
     await waitFor(() => expect(addGuest).toHaveBeenCalledWith('t1', '媽媽'))
     await waitFor(() => expect(input).toHaveValue(''))
+  })
+
+  it('binds a companion without an account to an account that joined, only once confirmed', async () => {
+    const joined = {
+      ...trip,
+      members: [
+        ...trip.members,
+        { email: 'guest:mom', display_name: '媽媽', avatar_url: '' },
+        { email: 'dad@test.com', display_name: '杜大明', avatar_url: '' },
+      ],
+    }
+    render(<MembersSection trip={joined} currentEmail="bro@test.com" />)
+    // Only companions without an account offer 綁定
+    const bind = screen.getAllByRole('button', { name: '綁定' })
+    expect(bind).toHaveLength(2)
+    fireEvent.click(bind[0])
+
+    const picker = screen.getByRole('group', { name: '爸爸是哪個帳號' })
+    // Accounts only, never another companion without one
+    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      '昱成 owner@test.com', '昱達 bro@test.com', '杜大明 dad@test.com',
+    ])
+    fireEvent.click(within(picker).getByRole('button', { name: /杜大明/ }))
+    expect(mergeGuest).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '確認綁定' }))
+    await waitFor(() => expect(mergeGuest).toHaveBeenCalledWith('t1', 'guest:dad', 'dad@test.com'))
   })
 })

@@ -41,10 +41,26 @@ import {
   updateMyDisplayName,
   subscribeToTripData,
   addGuest,
+  mergeGuest,
 } from '../../lib/db'
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('mergeGuest', () => {
+  it('asks the merge RPC to bind the guest to the member', async () => {
+    mockRpc.mockResolvedValue({ data: true, error: null })
+    expect(await mergeGuest('t1', 'guest:dad', 'dad@test.com')).toBe(true)
+    expect(mockRpc).toHaveBeenCalledWith('merge_guest_rpc', { p_trip_id: 't1', p_guest: 'guest:dad', p_member: 'dad@test.com' })
+  })
+
+  it('reports a refused or failed merge as false', async () => {
+    mockRpc.mockResolvedValue({ data: false, error: null })
+    expect(await mergeGuest('t1', 'guest:dad', 'dad@test.com')).toBe(false)
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await mergeGuest('t1', 'guest:dad', 'dad@test.com')).toBe(false)
+  })
 })
 
 describe('addGuest', () => {

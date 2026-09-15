@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { addGuest, removeMember } from '../lib/db'
+import { addGuest, mergeGuest, removeMember } from '../lib/db'
 import { isGuest } from '../lib/members'
 import { toast } from '../lib/toast'
 import { Icon } from './Icon'
+import { ConfirmSheet } from './ConfirmSheet'
 import { useInviteLink } from '../hooks/useInviteLink'
 import type { Trip } from '../types'
 
@@ -18,8 +19,21 @@ export function MembersSection({ trip, currentEmail }: Props) {
 
   const [guestName, setGuestName] = useState('')
   const [addingGuest, setAddingGuest] = useState(false)
+  /** The companion whose account picker is open */
+  const [binding, setBinding] = useState<string | null>(null)
+  /** The pick awaiting confirmation, since binding cannot be undone */
+  const [bindPick, setBindPick] = useState<{ guest: Trip['members'][number]; account: Trip['members'][number] } | null>(null)
 
   const isOwner = trip.owner_email === currentEmail
+  const accounts = trip.members.filter((m) => !isGuest(m.email))
+
+  const handleBind = async () => {
+    if (!bindPick) return
+    const { guest, account } = bindPick
+    setBindPick(null)
+    setBinding(null)
+    if (!(await mergeGuest(trip.id, guest.email, account.email))) toast('綁定失敗,請再試一次')
+  }
 
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,42 +66,70 @@ export function MembersSection({ trip, currentEmail }: Props) {
       <p className="text-xs font-semibold text-text-label mb-3">旅伴 ({trip.members.length})</p>
       <div className="flex flex-col gap-3 mb-3">
         {trip.members.map((member) => (
-          <div key={member.email} className="flex items-center gap-3">
-            {member.avatar_url ? (
-              <img src={member.avatar_url} alt="" className="w-8 h-8 rounded-full shrink-0" />
-            ) : (
-              <div className="w-8 h-8 rounded-full bg-border flex items-center justify-center shrink-0">
-                <span className="text-xs font-semibold text-text-secondary">
-                  {(member.display_name || member.email).charAt(0).toUpperCase()}
-                </span>
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text-strong truncate">
-                {member.display_name || member.email}
-              </p>
-              {isGuest(member.email) ? (
-                <p className="text-[11px] text-text-label">未加入</p>
-              ) : member.display_name && (
-                <p className="text-[11px] text-text-label truncate">{member.email}</p>
+          <div key={member.email}>
+            <div className="flex items-center gap-3">
+              {member.avatar_url ? (
+                <img src={member.avatar_url} alt="" className="w-8 h-8 rounded-full shrink-0" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-border flex items-center justify-center shrink-0">
+                  <span className="text-xs font-semibold text-text-secondary">
+                    {(member.display_name || member.email).charAt(0).toUpperCase()}
+                  </span>
+                </div>
               )}
-              {trip.owner_email === member.email && (
-                <p className="text-[10px] text-primary font-semibold">主揪</p>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-text-strong truncate">
+                  {member.display_name || member.email}
+                </p>
+                {isGuest(member.email) ? (
+                  <p className="text-[11px] text-text-label">未加入</p>
+                ) : member.display_name && (
+                  <p className="text-[11px] text-text-label truncate">{member.email}</p>
+                )}
+                {trip.owner_email === member.email && (
+                  <p className="text-[10px] text-primary font-semibold">主揪</p>
+                )}
+              </div>
+              {isGuest(member.email) && (
+                <button
+                  onClick={() => setBinding(binding === member.email ? null : member.email)}
+                  aria-expanded={binding === member.email}
+                  className="text-xs font-semibold shrink-0 px-2 py-1 rounded-[6px] text-primary"
+                >
+                  綁定
+                </button>
+              )}
+              {/* A companion without an account is anyone's to remove; a real member only the owner's */}
+              {(isGuest(member.email) || (isOwner && member.email !== currentEmail)) && (
+                <button
+                  onClick={() => handleRemove(member.email)}
+                  disabled={removing === member.email}
+                  className={`text-xs font-semibold shrink-0 disabled:opacity-40 px-2 py-1 rounded-[6px] ${
+                    confirming === member.email
+                      ? 'text-white bg-danger'
+                      : 'text-text-label'
+                  }`}
+                >
+                  {removing === member.email ? '移除中' : confirming === member.email ? '確認移除?' : '移除'}
+                </button>
               )}
             </div>
-            {/* A companion without an account is anyone's to remove; a real member only the owner's */}
-            {(isGuest(member.email) || (isOwner && member.email !== currentEmail)) && (
-              <button
-                onClick={() => handleRemove(member.email)}
-                disabled={removing === member.email}
-                className={`text-xs font-semibold shrink-0 disabled:opacity-40 px-2 py-1 rounded-[6px] ${
-                  confirming === member.email
-                    ? 'text-white bg-danger'
-                    : 'text-text-label'
-                }`}
-              >
-                {removing === member.email ? '移除中' : confirming === member.email ? '確認移除?' : '移除'}
-              </button>
+            {binding === member.email && (
+              // Once they have joined through the link: pick the account that is really them
+              <div role="group" aria-label={`${member.display_name}是哪個帳號`} className="mt-2 ml-11 flex flex-col gap-1.5">
+                <p className="text-[11px] text-text-label">「{member.display_name}」是哪個帳號?</p>
+                {accounts.map((account) => (
+                  <button
+                    key={account.email}
+                    onClick={() => setBindPick({ guest: member, account })}
+                    className="text-left text-xs rounded-[8px] bg-bg px-3 py-2 truncate"
+                  >
+                    <span className="font-semibold text-text-strong">{account.display_name || account.email}</span>
+                    {' '}
+                    <span className="text-text-label">{account.email}</span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         ))}
@@ -129,6 +171,15 @@ export function MembersSection({ trip, currentEmail }: Props) {
           )}
         </button>
       </div>
+      {bindPick && (
+        <ConfirmSheet
+          title={`把「${bindPick.guest.display_name}」綁定到 ${bindPick.account.display_name || bindPick.account.email}?`}
+          description={`分頭行動裡的${bindPick.guest.display_name}會換成 ${bindPick.account.email} 這個帳號,綁定後無法復原。`}
+          confirmLabel="確認綁定"
+          onConfirm={handleBind}
+          onCancel={() => setBindPick(null)}
+        />
+      )}
     </section>
   )
 }

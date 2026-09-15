@@ -102,6 +102,12 @@ export async function addGuest(tripId: string, name: string): Promise<string | n
   return error ? null : email
 }
 
+/** Binds a companion added by name to the account they joined with: their fork groups follow the account and the guest row goes (migration 016). Cannot be undone. */
+export async function mergeGuest(tripId: string, guest: string, member: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('merge_guest_rpc', { p_trip_id: tripId, p_guest: guest, p_member: member })
+  return !error && data === true
+}
+
 export type TripSummary = Pick<Trip, 'id' | 'name' | 'start_date' | 'end_date' | 'owner_email'> & {
   members: TripMember[]
 }
