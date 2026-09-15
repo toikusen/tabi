@@ -5,13 +5,10 @@ import {
   useSensor, useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useAuth } from '../hooks/useAuth'
 import { useTrip } from '../hooks/useTrip'
-import { useSyncStatus } from '../hooks/useSyncStatus'
 import { fmtChip, scrollTargetEventId, todayStr, tripStatus } from '../lib/dates'
 import { Icon } from '../components/Icon'
-import { SyncIndicator } from '../components/SyncIndicator'
-import { AvatarStack } from '../components/AvatarStack'
+import { TripHeaderActions } from '../components/TripHeaderActions'
 import { TripNav } from '../components/TripNav'
 import { DaySection } from '../components/DaySection'
 import { WishlistSection } from '../components/WishlistSection'
@@ -22,11 +19,9 @@ import { InstallPrompt } from '../components/InstallPrompt'
 import { InviteCard } from '../components/InviteCard'
 
 export function TimelinePage() {
-  const { user } = useAuth()
   const navigate = useNavigate()
   const { tripId } = useParams<{ tripId: string }>()
   const { trip, days, eventsByDay, loading } = useTrip(tripId ?? null)
-  const syncStatus = useSyncStatus()
   const [activeDay, setActiveDay] = useState<string | null>(null)
 
   const scrolledRef = useRef(false)
@@ -112,25 +107,7 @@ export function TimelinePage() {
             </button>
             <h1 className="text-base font-bold text-text-strong truncate">{trip.name}</h1>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <SyncIndicator status={syncStatus} />
-            <button onClick={() => navigate(`/trips/${trip.id}/settings`)} aria-label="旅伴" className="flex items-center">
-              {trip.members.length > 0 ? (
-                <AvatarStack members={trip.members} size={24} max={3} />
-              ) : (
-                user?.user_metadata?.avatar_url && (
-                  <img src={user.user_metadata.avatar_url as string} alt="" className="w-7 h-7 rounded-full" />
-                )
-              )}
-            </button>
-            <button
-              onClick={() => navigate(`/trips/${trip.id}/settings`)}
-              aria-label="旅程設定"
-              className="text-text-label w-8 h-8 flex items-center justify-center"
-            >
-              <Icon name="settings" />
-            </button>
-          </div>
+          <TripHeaderActions trip={trip} />
         </div>
         {/* 日期膠囊列:點一下直達該天 */}
         {days.length > 1 && (
