@@ -6,6 +6,7 @@ import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
 import { groupFor, groupLabel } from '../lib/fork'
 import { Icon } from '../components/Icon'
 import { TripNav } from '../components/TripNav'
+import { TripHeaderActions } from '../components/TripHeaderActions'
 import { EventSheet } from '../components/EventSheet'
 import { EventDetailSheet } from '../components/EventDetailSheet'
 import type { TripEvent } from '../types'
@@ -89,11 +90,15 @@ export function OverviewPage() {
   return (
     <div className="min-h-screen bg-bg flex flex-col max-w-lg mx-auto">
       <header className="bg-white border-b border-border sticky top-0 z-20">
-        <div className="px-4 py-3 flex items-center gap-2 min-w-0">
-          <button onClick={() => navigate('/')} className="text-primary shrink-0 -ml-2 w-11 h-11 -my-1.5 flex items-center justify-center" aria-label="回旅程列表">
-            <Icon name="chevronLeft" />
-          </button>
-          <h1 className="text-base font-bold text-text-strong truncate">{trip.name}</h1>
+        {/* Same title row as the timeline's, so switching tabs keeps the header still */}
+        <div className="px-4 pt-3 pb-2 flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={() => navigate('/')} className="text-primary shrink-0 -ml-2 w-11 h-11 -my-1.5 flex items-center justify-center" aria-label="回旅程列表">
+              <Icon name="chevronLeft" />
+            </button>
+            <h1 className="text-base font-bold text-text-strong truncate">{trip.name}</h1>
+          </div>
+          <TripHeaderActions trip={trip} />
         </div>
         {hasFork && (
           <div role="group" aria-label="看誰的行程" className="flex gap-1.5 px-4 pb-2.5 pt-1 overflow-x-auto [scrollbar-width:none]">

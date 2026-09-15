@@ -1,10 +1,5 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-
-vi.mock('../../components/EventSheet', () => ({
-  EventSheet: ({ open, event, dayId }: { open: boolean; event: { id: string } | null; dayId: string | null }) =>
-    open ? <div data-testid="sheet">{`${dayId ?? 'wishlist'}/${event?.id ?? 'new'}`}</div> : null,
-}))
 
 import { WishlistSection } from '../../components/WishlistSection'
 import type { TripEvent } from '../../types'
@@ -14,32 +9,35 @@ const item = (id: string, title: string): TripEvent => ({
   location: '', notes: '', sort_order: 0,
 })
 
-const days = [{ id: 'd1', date: '2026-10-12', label: '', sort_order: 0 }]
-
 describe('WishlistSection', () => {
+  /** The sheet lives on the page now; the section only says what to open. */
+  const opened: (TripEvent | null)[] = []
+  const onOpen = (event: TripEvent | null) => { opened.push(event) }
+  beforeEach(() => { opened.length = 0 })
+
   it('explains itself when empty and still offers a way in', () => {
-    render(<WishlistSection tripId="t1" days={days} members={[]} events={[]} />)
+    render(<WishlistSection members={[]} events={[]} onOpen={onOpen} />)
     expect(screen.getByText('還沒排進哪一天的地方,先丟這裡。')).toBeInTheDocument()
     expect(screen.getByText('＋ 新增想去的地方')).toBeInTheDocument()
-    expect(screen.queryByTestId('sheet')).toBeNull()
+    expect(opened).toEqual([])
   })
 
   it('lists the collected places with a count', () => {
-    render(<WishlistSection tripId="t1" days={days} members={[]} events={[item('e1', '古宇利島'), item('e2', '瀨長島')]} />)
+    render(<WishlistSection members={[]} events={[item('e1', '古宇利島'), item('e2', '瀨長島')]} onOpen={onOpen} />)
     expect(screen.getByText('2')).toBeInTheDocument()
     expect(screen.getByText('古宇利島')).toBeInTheDocument()
     expect(screen.getByText('瀨長島')).toBeInTheDocument()
   })
 
-  it('opens a blank wishlist sheet from the add button', () => {
-    render(<WishlistSection tripId="t1" days={days} members={[]} events={[]} />)
+  it('asks for a blank sheet from the add button', () => {
+    render(<WishlistSection members={[]} events={[]} onOpen={onOpen} />)
     fireEvent.click(screen.getByText('＋ 新增想去的地方'))
-    expect(screen.getByTestId('sheet')).toHaveTextContent('wishlist/new')
+    expect(opened).toEqual([null])
   })
 
-  it('opens the card it was tapped on, so it can be given a date', () => {
-    render(<WishlistSection tripId="t1" days={days} members={[]} events={[item('e1', '古宇利島')]} />)
+  it('asks for the card it was tapped on, so it can be given a date', () => {
+    render(<WishlistSection members={[]} events={[item('e1', '古宇利島')]} onOpen={onOpen} />)
     fireEvent.click(screen.getByText('古宇利島'))
-    expect(screen.getByTestId('sheet')).toHaveTextContent('wishlist/e1')
+    expect(opened.map((e) => e?.id)).toEqual(['e1'])
   })
 })

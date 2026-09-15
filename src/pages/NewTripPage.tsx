@@ -36,7 +36,7 @@ export function NewTripPage() {
     try {
       const displayName = (user.user_metadata?.full_name as string) ?? user.email ?? ''
       const avatarUrl = (user.user_metadata?.avatar_url as string) ?? ''
-      const id = await createTrip(tripName.trim(), user.email, displayName, avatarUrl, startDate, endDate)
+      const id = await createTrip(tripName.trim(), displayName, avatarUrl, startDate, endDate)
       navigate(`/trips/${id}`, { replace: true })
     } catch {
       setCreateError(true)

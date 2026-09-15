@@ -20,54 +20,27 @@ function debounce(fn: () => void, ms = 50): Debounced {
   return run
 }
 
-export function dateRange(startDate: string, endDate: string): string[] {
-  const [sy, sm, sd] = startDate.split('-').map(Number)
-  const [ey, em, ed] = endDate.split('-').map(Number)
-  const current = new Date(sy, sm - 1, sd)
-  const end = new Date(ey, em - 1, ed)
-  const out: string[] = []
-  while (current <= end) {
-    const y = current.getFullYear()
-    const mo = String(current.getMonth() + 1).padStart(2, '0')
-    const d = String(current.getDate()).padStart(2, '0')
-    out.push(`${y}-${mo}-${d}`)
-    current.setDate(current.getDate() + 1)
-  }
-  return out
-}
-
 // --- Trip ---
 
+/** The trip, the owner's membership and the days in one transaction (migration
+ *  018): a half-created trip is one its own creator cannot read, or one with no
+ *  days. The owner is whoever is calling, so no email is passed. */
 export async function createTrip(
   name: string,
-  ownerEmail: string,
   ownerDisplayName: string,
   ownerAvatarUrl: string,
   startDate: string,
   endDate: string
 ): Promise<string> {
-  // Generate UUID client-side to avoid the RLS chicken-and-egg problem:
-  // INSERT...RETURNING triggers trips_read policy before trip_members row exists.
-  const tripId = crypto.randomUUID()
-
-  const { error } = await supabase
-    .from('trips')
-    .insert({ id: tripId, name, start_date: startDate, end_date: endDate, owner_email: ownerEmail })
-  if (error) throw new Error(error.message)
-
-  await supabase.from('trip_members').insert({
-    trip_id: tripId,
-    user_email: ownerEmail,
-    display_name: ownerDisplayName,
-    avatar_url: ownerAvatarUrl,
+  const { data, error } = await supabase.rpc('create_trip_rpc', {
+    p_name: name,
+    p_start: startDate,
+    p_end: endDate,
+    p_display_name: ownerDisplayName,
+    p_avatar_url: ownerAvatarUrl,
   })
-
-  const days = dateRange(startDate, endDate).map((date, i) => ({
-    trip_id: tripId, date, label: '', sort_order: i,
-  }))
-  await supabase.from('days').insert(days)
-
-  return tripId
+  if (error || !data) throw new Error(error?.message ?? 'createTrip failed')
+  return data as string
 }
 
 export async function joinTrip(tripId: string): Promise<boolean> {
@@ -169,6 +142,9 @@ export async function deleteTrip(tripId: string): Promise<boolean> {
   return !error && data === true
 }
 
+/** Adds and removes days to match the new range, then moves the trip's own
+ *  dates — one transaction (migration 018). Refuses, naming the dates, when a
+ *  day about to be removed still holds events: days cascade to their events. */
 export async function updateTripDates(
   tripId: string,
   startDate: string,
@@ -176,52 +152,17 @@ export async function updateTripDates(
 ): Promise<{ ok: boolean; blockedDates?: string[]; error?: string }> {
   if (!startDate || !endDate || startDate > endDate) return { ok: false, error: 'INVALID_RANGE' }
 
-  const { data: existing, error: fetchError } = await supabase
-    .from('days').select('id, date').eq('trip_id', tripId)
-  if (fetchError) return { ok: false, error: fetchError.message }
-  const days = (existing ?? []) as { id: string; date: string }[]
+  const { data, error } = await supabase.rpc('update_trip_dates_rpc', {
+    p_trip_id: tripId,
+    p_start: startDate,
+    p_end: endDate,
+  })
+  if (error) return { ok: false, error: error.message }
 
-  const wanted = dateRange(startDate, endDate)
-  const wantedSet = new Set(wanted)
-  const toRemove = days.filter(d => !wantedSet.has(d.date))
-
-  if (toRemove.length) {
-    const { data: evts, error: evtsError } = await supabase
-      .from('events').select('day_id')
-      .in('day_id', toRemove.map(d => d.id))
-    if (evtsError) return { ok: false, error: evtsError.message }
-    if (evts?.length) {
-      const blockedIds = new Set((evts as { day_id: string }[]).map(e => e.day_id))
-      return {
-        ok: false,
-        blockedDates: toRemove.filter(d => blockedIds.has(d.id)).map(d => d.date).sort(),
-      }
-    }
-    const { error: deleteError } = await supabase.from('days').delete().in('id', toRemove.map(d => d.id))
-    if (deleteError) return { ok: false, error: deleteError.message }
-  }
-
-  const existingSet = new Set(days.map(d => d.date))
-  const toAdd = wanted.filter(date => !existingSet.has(date))
-  if (toAdd.length) {
-    const { error: insertError } = await supabase.from('days').insert(
-      toAdd.map(date => ({ trip_id: tripId, date, label: '', sort_order: wanted.indexOf(date) }))
-    )
-    if (insertError) return { ok: false, error: insertError.message }
-  }
-
-  // Renumber kept days so sort_order follows date order
-  const kept = days.filter(d => wantedSet.has(d.date))
-  const renumberResults = await Promise.all(kept.map(d =>
-    supabase.from('days').update({ sort_order: wanted.indexOf(d.date) }).eq('id', d.id)
-  ))
-  const renumberError = renumberResults.find(r => r.error)?.error
-  if (renumberError) return { ok: false, error: renumberError.message }
-
-  const { error: tripError } = await supabase
-    .from('trips').update({ start_date: startDate, end_date: endDate }).eq('id', tripId)
-  if (tripError) return { ok: false, error: tripError.message }
-  return { ok: true }
+  const result = (data ?? {}) as { ok?: boolean; blocked?: string[]; error?: string }
+  if (result.ok) return { ok: true }
+  if (result.blocked?.length) return { ok: false, blockedDates: result.blocked }
+  return { ok: false, error: result.error ?? 'UPDATE_DATES_FAILED' }
 }
 
 // --- Days ---

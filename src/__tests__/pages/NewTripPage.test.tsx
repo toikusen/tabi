@@ -72,7 +72,8 @@ describe('NewTripPage', () => {
     fireEvent.click(screen.getByText('建立旅程'))
 
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/trips/new-id', { replace: true }))
-    expect(mockCreateTrip).toHaveBeenCalledWith('東京', 'sei@test.com', 'Sei', '', '2026-09-01', '2026-09-03')
+    // No email argument: the RPC takes the owner from the caller's own session
+    expect(mockCreateTrip).toHaveBeenCalledWith('東京', 'Sei', '', '2026-09-01', '2026-09-03')
   })
 
   it('shows an error when creation fails', async () => {

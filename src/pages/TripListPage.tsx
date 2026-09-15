@@ -23,6 +23,23 @@ function readTripsCache(): TripSummary[] | null {
   }
 }
 
+/** Trailing block that spells out the countdown: "出發倒數 48 天", "旅行中 第 2 天". */
+function TripCountdown({ start, status }: { start: string; status: 'upcoming' | 'ongoing' }) {
+  const days = daysUntil(start)
+  const num = (n: number) => <span className="text-xl font-bold leading-none">{n}</span>
+
+  return (
+    <div className={`shrink-0 text-right ${status === 'ongoing' ? 'text-ok' : 'text-primary'}`}>
+      <p className="text-[10px] font-bold text-text-label">{status === 'ongoing' ? '旅行中' : '出發倒數'}</p>
+      <p className="text-xs font-bold mt-1">
+        {status === 'ongoing' ? <>第 {num(1 - days)} 天</>
+          : days === 1 ? <span className="text-base leading-none">明天</span>
+          : <>{num(days)} 天</>}
+      </p>
+    </div>
+  )
+}
+
 function TripCard({ trip, onClick }: { trip: TripSummary; onClick: () => void }) {
   const status = tripStatus(trip.start_date, trip.end_date)
   const ended = status === 'ended'
@@ -33,21 +50,9 @@ function TripCard({ trip, onClick }: { trip: TripSummary; onClick: () => void })
       className={`bg-white rounded-[12px] p-4 shadow-card text-left active:opacity-70 flex items-center gap-3 ${ended ? 'opacity-60' : ''}`}
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
-          <p className="text-sm font-bold text-text-strong truncate">{trip.name}</p>
-          {status === 'upcoming' && (
-            <span className="shrink-0 text-[10px] font-bold text-primary bg-bg-accent rounded-full px-2 py-0.5">
-              D-{daysUntil(trip.start_date)}
-            </span>
-          )}
-          {status === 'ongoing' && (
-            <span className="shrink-0 text-[10px] font-bold text-ok bg-ok-surface rounded-full px-2 py-0.5">
-              進行中
-            </span>
-          )}
-        </div>
+        <p className="text-sm font-bold text-text-strong truncate">{trip.name}</p>
         <p className="text-xs text-text-label mt-1">
-          {fmtRange(trip.start_date, trip.end_date)} · {dayCount(trip.start_date, trip.end_date)} 天
+          {fmtRange(trip.start_date, trip.end_date)} ·{dayCount(trip.start_date, trip.end_date)} 天
         </p>
         {!ended && trip.members.length > 0 && (
           <div className="flex items-center gap-1.5 mt-2">
@@ -56,6 +61,7 @@ function TripCard({ trip, onClick }: { trip: TripSummary; onClick: () => void })
           </div>
         )}
       </div>
+      {!ended && <TripCountdown start={trip.start_date} status={status} />}
       <Icon name="chevronRight" size={16} className="shrink-0 text-icon-muted" />
     </button>
   )

@@ -5,13 +5,10 @@ import {
   useSensor, useSensors,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useAuth } from '../hooks/useAuth'
 import { useTrip } from '../hooks/useTrip'
-import { useSyncStatus } from '../hooks/useSyncStatus'
 import { fmtChip, scrollTargetEventId, todayStr, tripStatus } from '../lib/dates'
 import { Icon } from '../components/Icon'
-import { SyncIndicator } from '../components/SyncIndicator'
-import { AvatarStack } from '../components/AvatarStack'
+import { TripHeaderActions } from '../components/TripHeaderActions'
 import { TripNav } from '../components/TripNav'
 import { DaySection } from '../components/DaySection'
 import { WishlistSection } from '../components/WishlistSection'
@@ -20,14 +17,27 @@ import { useTripDnd } from '../hooks/useTripDnd'
 import { cardsOverContainers, type EventsByDay } from '../lib/dnd'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InviteCard } from '../components/InviteCard'
+import { EventSheet } from '../components/EventSheet'
+import { EventDetailSheet } from '../components/EventDetailSheet'
+import { useNow } from '../hooks/useNow'
+import type { TripEvent } from '../types'
+
+/** An event and the list it was opened from; a null dayId is the wishlist. */
+interface Picked {
+  event: TripEvent | null
+  dayId: string | null
+}
 
 export function TimelinePage() {
-  const { user } = useAuth()
   const navigate = useNavigate()
   const { tripId } = useParams<{ tripId: string }>()
   const { trip, days, eventsByDay, loading } = useTrip(tripId ?? null)
-  const syncStatus = useSyncStatus()
   const [activeDay, setActiveDay] = useState<string | null>(null)
+  /** One sheet each for the whole trip, not one per day: a ten-day trip used
+   *  to mount eleven of each, and a minute timer per day besides. */
+  const [detail, setDetail] = useState<Picked | null>(null)
+  const [editing, setEditing] = useState<Picked | null>(null)
+  const now = useNow()
 
   const scrolledRef = useRef(false)
 
@@ -112,25 +122,7 @@ export function TimelinePage() {
             </button>
             <h1 className="text-base font-bold text-text-strong truncate">{trip.name}</h1>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
-            <SyncIndicator status={syncStatus} />
-            <button onClick={() => navigate(`/trips/${trip.id}/settings`)} aria-label="旅伴" className="flex items-center">
-              {trip.members.length > 0 ? (
-                <AvatarStack members={trip.members} size={24} max={3} />
-              ) : (
-                user?.user_metadata?.avatar_url && (
-                  <img src={user.user_metadata.avatar_url as string} alt="" className="w-7 h-7 rounded-full" />
-                )
-              )}
-            </button>
-            <button
-              onClick={() => navigate(`/trips/${trip.id}/settings`)}
-              aria-label="旅程設定"
-              className="text-text-label w-8 h-8 flex items-center justify-center"
-            >
-              <Icon name="settings" />
-            </button>
-          </div>
+          <TripHeaderActions trip={trip} />
         </div>
         {/* 日期膠囊列:點一下直達該天 */}
         {days.length > 1 && (
@@ -175,19 +167,21 @@ export function TimelinePage() {
               <DaySection
                 key={day.id}
                 day={day}
-                tripId={trip.id}
                 members={trip.members}
                 events={byDay[day.id] ?? []}
-                days={days}
+                now={now}
+                onCreate={(dayId) => setEditing({ event: null, dayId })}
+                onOpen={(event, dayId) => setDetail({ event, dayId })}
               />
             ))}
           </div>
 
+          {/* A wish opens straight into the edit sheet: giving it a date is
+              the whole point of tapping one. */}
           <WishlistSection
-            tripId={trip.id}
-            days={days}
             members={trip.members}
             events={byDay[WISHLIST] ?? []}
+            onOpen={(event) => setEditing({ event, dayId: null })}
           />
         </DndContext>
       </main>
@@ -198,6 +192,28 @@ export function TimelinePage() {
         onToday={scrollToNow}
         onTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         onOverview={() => navigate(`/trips/${trip.id}/overview`)}
+      />
+
+      <EventDetailSheet
+        open={!!detail}
+        event={detail?.event ?? null}
+        members={trip.members}
+        onClose={() => setDetail(null)}
+        onEdit={() => {
+          setEditing(detail)
+          setDetail(null)
+        }}
+      />
+
+      <EventSheet
+        open={!!editing}
+        event={editing?.event ?? null}
+        dayId={editing?.dayId ?? null}
+        tripId={trip.id}
+        events={editing ? byDay[editing.dayId ?? WISHLIST] ?? [] : []}
+        members={trip.members}
+        days={days}
+        onClose={() => setEditing(null)}
       />
 
       <InstallPrompt />

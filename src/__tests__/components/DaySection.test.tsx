@@ -5,15 +5,15 @@ vi.mock('../../lib/db', () => ({
   updateDayLabel: vi.fn(async () => ({ ok: true })),
 }))
 vi.mock('../../lib/toast', () => ({ toast: vi.fn() }))
-vi.mock('../../components/EventSheet', () => ({ EventSheet: () => null }))
-vi.mock('../../components/EventDetailSheet', () => ({ EventDetailSheet: () => null }))
-vi.mock('../../hooks/useNow', () => ({ useNow: () => new Date('2026-10-12T10:00:00') }))
 
 import { DaySection } from '../../components/DaySection'
 import { updateDayLabel } from '../../lib/db'
 import { toast } from '../../lib/toast'
 
 const day = { id: 'd1', date: '2026-10-12', label: '', sort_order: 0 }
+const now = new Date('2026-10-12T10:00:00')
+/** The page owns the sheets and the clock now, so every render supplies them. */
+const sheets = { now, onCreate: () => {}, onOpen: () => {} }
 const ev = (id: string, time_start: string) => ({
   id, type: 'shared' as const, title: id, time_start, time_end: '',
   location: '', notes: '', sort_order: 0,
@@ -22,7 +22,7 @@ const ev = (id: string, time_start: string) => ({
 describe('DaySection now line', () => {
   it('places the now line after the last started event despite list order', () => {
     render(
-      <DaySection day={day} tripId="t1" members={[]} events={[ev('b', '14:00'), ev('a', '09:00'), ev('c', '18:00')]} />
+      <DaySection day={day} members={[]} events={[ev('b', '14:00'), ev('a', '09:00'), ev('c', '18:00')]} {...sheets} />
     )
     // Accessible name includes the time suffix (e.g. "b 14:00"), so match on the leading letter.
     const cards = screen.getAllByRole('button', { name: /^[abc](?:\s|$)/ })
@@ -34,25 +34,25 @@ describe('DaySection now line', () => {
 
   it('renders no now line on a day that is not today', () => {
     render(
-      <DaySection day={{ ...day, date: '2026-10-13' }} tripId="t1" members={[]} events={[ev('a', '09:00')]} />
+      <DaySection day={{ ...day, date: '2026-10-13' }} members={[]} events={[ev('a', '09:00')]} {...sheets} />
     )
     expect(screen.queryByTestId('now-line')).not.toBeInTheDocument()
   })
 
   it('shows a visible drag handle', () => {
-    render(<DaySection day={day} tripId="t1" members={[]} events={[ev('a', '09:00')]} />)
+    render(<DaySection day={day} members={[]} events={[ev('a', '09:00')]} {...sheets} />)
     expect(screen.getByRole('button', { name: '拖曳排序' })).toBeVisible()
   })
 })
 
 describe('DaySection empty day', () => {
   it('offers itself as a drop target instead of rendering nothing', () => {
-    render(<DaySection day={day} tripId="t1" members={[]} events={[]} />)
+    render(<DaySection day={day} members={[]} events={[]} {...sheets} />)
     expect(screen.getByText('還沒安排,把卡片拖來這裡')).toBeVisible()
   })
 
   it('drops the hint once the day has something in it', () => {
-    render(<DaySection day={day} tripId="t1" members={[]} events={[ev('a', '09:00')]} />)
+    render(<DaySection day={day} members={[]} events={[ev('a', '09:00')]} {...sheets} />)
     expect(screen.queryByText('還沒安排,把卡片拖來這裡')).toBeNull()
   })
 })
@@ -61,7 +61,7 @@ describe('DaySection label editing', () => {
   it('reverts the label and toasts when updateDayLabel fails', async () => {
     vi.mocked(updateDayLabel).mockResolvedValueOnce({ ok: false })
     render(
-      <DaySection day={{ ...day, label: '原本標籤' }} tripId="t1" members={[]} events={[]} />
+      <DaySection day={{ ...day, label: '原本標籤' }} members={[]} events={[]} {...sheets} />
     )
 
     fireEvent.click(screen.getByText('原本標籤'))
@@ -75,9 +75,9 @@ describe('DaySection label editing', () => {
 
   it('edits the current label, not the one it was first rendered with', () => {
     vi.mocked(updateDayLabel).mockClear()
-    const { rerender } = render(<DaySection day={{ ...day, label: '舊' }} tripId="t1" members={[]} events={[]} />)
+    const { rerender } = render(<DaySection day={{ ...day, label: '舊' }} members={[]} events={[]} {...sheets} />)
     // A tripmate renames the day; realtime pushes the new label in.
-    rerender(<DaySection day={{ ...day, label: '新宿' }} tripId="t1" members={[]} events={[]} />)
+    rerender(<DaySection day={{ ...day, label: '新宿' }} members={[]} events={[]} {...sheets} />)
 
     fireEvent.click(screen.getByText('新宿'))
     const input = screen.getByLabelText('日期標籤')
@@ -89,7 +89,7 @@ describe('DaySection label editing', () => {
 
   it('discards the edit on Escape', () => {
     vi.mocked(updateDayLabel).mockClear()
-    render(<DaySection day={{ ...day, label: '新宿' }} tripId="t1" members={[]} events={[]} />)
+    render(<DaySection day={{ ...day, label: '新宿' }} members={[]} events={[]} {...sheets} />)
 
     fireEvent.click(screen.getByText('新宿'))
     const input = screen.getByLabelText('日期標籤')
@@ -102,7 +102,7 @@ describe('DaySection label editing', () => {
 
   it('saves the trimmed title on Enter from the empty state', () => {
     vi.mocked(updateDayLabel).mockClear()
-    render(<DaySection day={day} tripId="t1" members={[]} events={[]} />)
+    render(<DaySection day={day} members={[]} events={[]} {...sheets} />)
 
     fireEvent.click(screen.getByRole('button', { name: '當天主題' }))
     const input = screen.getByLabelText('日期標籤')
@@ -120,9 +120,9 @@ describe('DaySection route link', () => {
     render(
       <DaySection
         day={day}
-        tripId="t1"
+       
         members={[]}
-        events={[at('a', '那霸機場'), at('b', '美麗海水族館'), at('c', '國際通')]}
+        events={[at('a', '那霸機場'), at('b', '美麗海水族館'), at('c', '國際通')]} {...sheets}
       />
     )
     const link = screen.getByRole('link', { name: /當日路線/ })
@@ -133,7 +133,7 @@ describe('DaySection route link', () => {
   })
 
   it('stays out of the way when there is nothing to route', () => {
-    render(<DaySection day={day} tripId="t1" members={[]} events={[at('a', '那霸機場')]} />)
+    render(<DaySection day={day} members={[]} events={[at('a', '那霸機場')]} {...sheets} />)
     expect(screen.queryByRole('link', { name: /當日路線/ })).toBeNull()
   })
 })

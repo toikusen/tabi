@@ -35,7 +35,6 @@ import {
   updateDayLabel,
   updateEvent,
   deleteEvent,
-  dateRange,
   updateTripDates,
   removeMember,
   updateMyDisplayName,
@@ -82,34 +81,29 @@ describe('addGuest', () => {
 })
 
 describe('createTrip', () => {
-  it('inserts into trips, trip_members, and days; returns a UUID', async () => {
-    const tripsInsert = vi.fn().mockResolvedValue({ error: null })
-    const dayInsert = vi.fn().mockResolvedValue({ error: null })
-    const memberInsert = vi.fn().mockResolvedValue({ error: null })
+  it('creates the trip, the membership and the days in one RPC', async () => {
+    mockRpc.mockResolvedValue({ data: 'new-trip-id', error: null })
 
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'trips') return { insert: tripsInsert }
-      if (table === 'trip_members') return { insert: memberInsert }
-      if (table === 'days') return { insert: dayInsert }
-      return {}
+    const id = await createTrip('沖繩 2025', 'Sei', 'https://avatar.url', '2025-06-11', '2025-06-12')
+
+    expect(id).toBe('new-trip-id')
+    expect(mockRpc).toHaveBeenCalledWith('create_trip_rpc', {
+      p_name: '沖繩 2025',
+      p_start: '2025-06-11',
+      p_end: '2025-06-12',
+      p_display_name: 'Sei',
+      p_avatar_url: 'https://avatar.url',
     })
+    // No partial trip left behind by a direct insert that half-succeeded
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
 
-    const id = await createTrip('沖繩 2025', 'sei@test.com', 'Sei', 'https://avatar.url', '2025-06-11', '2025-06-12')
+  it('throws instead of returning a trip id the server never made', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'rls' } })
+    await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow('rls')
 
-    // Returns a client-generated UUID (not predictable, just verify format)
-    expect(id).toMatch(/^[0-9a-f-]{36}$/)
-    expect(tripsInsert).toHaveBeenCalledWith(expect.objectContaining({ name: '沖繩 2025', owner_email: 'sei@test.com' }))
-    expect(memberInsert).toHaveBeenCalledWith({
-      trip_id: id,
-      user_email: 'sei@test.com',
-      display_name: 'Sei',
-      avatar_url: 'https://avatar.url',
-    })
-
-    const [daysArg] = dayInsert.mock.calls[0] as [Array<{ date: string }>]
-    expect(daysArg.length).toBe(2)
-    expect(daysArg[0].date).toBe('2025-06-11')
-    expect(daysArg[1].date).toBe('2025-06-12')
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow()
   })
 })
 
@@ -329,138 +323,48 @@ describe('removeMember', () => {
   })
 })
 
-describe('dateRange', () => {
-  it('returns inclusive date list', () => {
-    expect(dateRange('2026-08-30', '2026-09-02')).toEqual([
-      '2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02',
-    ])
-  })
-
-  it('returns single date when start equals end', () => {
-    expect(dateRange('2026-08-30', '2026-08-30')).toEqual(['2026-08-30'])
-  })
-})
-
 describe('updateTripDates', () => {
-  function setupDaysMock(opts: {
-    existingDays: { id: string; date: string }[]
-    eventsOnDayIds?: string[]
-    fetchError?: { message: string }
-    deleteError?: { message: string }
-  }) {
-    const daysSelectEq = vi.fn().mockResolvedValue(
-      opts.fetchError ? { data: null, error: opts.fetchError } : { data: opts.existingDays, error: null }
-    )
-    const eventsSelectIn = vi.fn().mockResolvedValue({
-      data: (opts.eventsOnDayIds ?? []).map(day_id => ({ day_id })),
-      error: null,
-    })
-    const daysDeleteIn = vi.fn().mockResolvedValue(
-      opts.deleteError ? { error: opts.deleteError } : { error: null }
-    )
-    const daysInsert = vi.fn().mockResolvedValue({ error: null })
-    const daysUpdateEq = vi.fn().mockResolvedValue({ error: null })
-    const tripsUpdateEq = vi.fn().mockResolvedValue({ error: null })
-
-    mockFrom.mockImplementation((table: string) => {
-      if (table === 'days') return {
-        select: vi.fn().mockReturnValue({ eq: daysSelectEq }),
-        delete: vi.fn().mockReturnValue({ in: daysDeleteIn }),
-        insert: daysInsert,
-        update: vi.fn().mockReturnValue({ eq: daysUpdateEq }),
-      }
-      if (table === 'events') return {
-        select: vi.fn().mockReturnValue({ in: eventsSelectIn }),
-      }
-      if (table === 'trips') return {
-        update: vi.fn().mockReturnValue({ eq: tripsUpdateEq }),
-      }
-      return {}
-    })
-
-    return { daysDeleteIn, daysInsert, tripsUpdateEq }
-  }
-
-  it('extends the range by inserting missing days', async () => {
-    const { daysInsert, tripsUpdateEq } = setupDaysMock({
-      existingDays: [{ id: 'd1', date: '2026-08-01' }],
-    })
+  it('hands the whole date change to one RPC', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: true }, error: null })
 
     const result = await updateTripDates('t1', '2026-08-01', '2026-08-02')
 
-    expect(result.ok).toBe(true)
-    expect(daysInsert).toHaveBeenCalledWith([
-      { trip_id: 't1', date: '2026-08-02', label: '', sort_order: 1 },
-    ])
-    expect(tripsUpdateEq).toHaveBeenCalledWith('id', 't1')
-  })
-
-  it('shrinks the range by deleting empty out-of-range days', async () => {
-    const { daysDeleteIn } = setupDaysMock({
-      existingDays: [
-        { id: 'd1', date: '2026-08-01' },
-        { id: 'd2', date: '2026-08-02' },
-      ],
+    expect(result).toEqual({ ok: true })
+    expect(mockRpc).toHaveBeenCalledWith('update_trip_dates_rpc', {
+      p_trip_id: 't1',
+      p_start: '2026-08-01',
+      p_end: '2026-08-02',
     })
-
-    const result = await updateTripDates('t1', '2026-08-01', '2026-08-01')
-
-    expect(result.ok).toBe(true)
-    expect(daysDeleteIn).toHaveBeenCalledWith('id', ['d2'])
-  })
-
-  it('refuses to shrink when a removed day still has events', async () => {
-    const { daysDeleteIn, tripsUpdateEq } = setupDaysMock({
-      existingDays: [
-        { id: 'd1', date: '2026-08-01' },
-        { id: 'd2', date: '2026-08-02' },
-      ],
-      eventsOnDayIds: ['d2'],
-    })
-
-    const result = await updateTripDates('t1', '2026-08-01', '2026-08-01')
-
-    expect(result.ok).toBe(false)
-    expect(result.blockedDates).toEqual(['2026-08-02'])
-    expect(daysDeleteIn).not.toHaveBeenCalled()
-    expect(tripsUpdateEq).not.toHaveBeenCalled()
-  })
-
-  it('returns INVALID_RANGE without touching the db when start > end', async () => {
-    const result = await updateTripDates('t1', '2026-08-02', '2026-08-01')
-
-    expect(result).toEqual({ ok: false, error: 'INVALID_RANGE' })
+    // The check and the delete share the RPC's transaction, so nothing is
+    // read here and then written from a second request
     expect(mockFrom).not.toHaveBeenCalled()
   })
 
-  it('returns ok:false when the initial days fetch errors', async () => {
-    const { daysInsert, daysDeleteIn, tripsUpdateEq } = setupDaysMock({
-      existingDays: [],
-      fetchError: { message: 'boom' },
-    })
-
-    const result = await updateTripDates('t1', '2026-08-01', '2026-08-02')
-
-    expect(result).toEqual({ ok: false, error: 'boom' })
-    expect(daysInsert).not.toHaveBeenCalled()
-    expect(daysDeleteIn).not.toHaveBeenCalled()
-    expect(tripsUpdateEq).not.toHaveBeenCalled()
-  })
-
-  it('returns ok:false and stops when the delete errors', async () => {
-    const { daysInsert, tripsUpdateEq } = setupDaysMock({
-      existingDays: [
-        { id: 'd1', date: '2026-08-01' },
-        { id: 'd2', date: '2026-08-02' },
-      ],
-      deleteError: { message: 'nope' },
-    })
+  it('names the days that still have events when the range is refused', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: false, blocked: ['2026-08-02'] }, error: null })
 
     const result = await updateTripDates('t1', '2026-08-01', '2026-08-01')
 
-    expect(result).toEqual({ ok: false, error: 'nope' })
-    expect(daysInsert).not.toHaveBeenCalled()
-    expect(tripsUpdateEq).not.toHaveBeenCalled()
+    expect(result).toEqual({ ok: false, blockedDates: ['2026-08-02'] })
+  })
+
+  it('returns INVALID_RANGE without calling the RPC when start > end', async () => {
+    const result = await updateTripDates('t1', '2026-08-02', '2026-08-01')
+
+    expect(result).toEqual({ ok: false, error: 'INVALID_RANGE' })
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+
+  it('reports a failed RPC rather than a silent success', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await updateTripDates('t1', '2026-08-01', '2026-08-02')).toEqual({ ok: false, error: 'boom' })
+
+    mockRpc.mockResolvedValue({ data: { ok: false, error: 'INVALID_RANGE' }, error: null })
+    expect(await updateTripDates('t1', '2026-08-01', '2026-08-02')).toEqual({ ok: false, error: 'INVALID_RANGE' })
+
+    // A null body is a refusal too, not an ok
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    expect(await updateTripDates('t1', '2026-08-01', '2026-08-02')).toEqual({ ok: false, error: 'UPDATE_DATES_FAILED' })
   })
 })
 

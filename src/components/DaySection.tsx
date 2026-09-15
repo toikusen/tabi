@@ -4,11 +4,8 @@ import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { updateDayLabel } from '../lib/db'
 import { toast } from '../lib/toast'
 import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl } from '../lib/dates'
-import { useNow } from '../hooks/useNow'
 import { Icon } from './Icon'
 import { SortableCard } from './SortableCard'
-import { EventSheet } from './EventSheet'
-import { EventDetailSheet } from './EventDetailSheet'
 import type { Day, TripEvent, TripMember } from '../types'
 
 function NowLine({ time }: { time: string }) {
@@ -23,24 +20,23 @@ function NowLine({ time }: { time: string }) {
 
 interface Props {
   day: Day
-  tripId: string
   members: TripMember[]
   events: TripEvent[]
-  /** All days of the trip — lets the edit sheet move an event elsewhere. */
-  days?: Day[]
+  /** Ticks once a minute, owned by the page: one timer for the whole trip
+   *  instead of one per day. */
+  now: Date
+  /** Opens the page's sheets. They live there, not here, so a ten-day trip
+   *  mounts one of each rather than ten. */
+  onCreate: (dayId: string) => void
+  onOpen: (event: TripEvent, dayId: string) => void
 }
 
 /** One day of the timeline. A drop target for the trip's DndContext, which
  *  lives in TimelinePage so a card can cross between days. */
-export function DaySection({ day, tripId, members, events, days = [] }: Props) {
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [selectedEvent, setSelectedEvent] = useState<TripEvent | null>(null)
-  const [detailOpen, setDetailOpen] = useState(false)
-  const [detailEvent, setDetailEvent] = useState<TripEvent | null>(null)
+export function DaySection({ day, members, events, now, onCreate, onOpen }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
   const { setNodeRef, isOver } = useDroppable({ id: day.id })
 
-  const now = useNow()
   const isToday = day.date === todayStr(now)
   const nowTime = hhmm(now)
   const nowIndex = isToday ? nowLineIndex(events, nowTime) : -1
@@ -55,23 +51,6 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
     if (label === day.label) return
     const result = await updateDayLabel(day.id, label)
     if (!result.ok) toast('標籤儲存失敗,請再試一次')
-  }
-
-  const openCreate = () => {
-    setSelectedEvent(null)
-    setSheetOpen(true)
-  }
-
-  const openDetail = (e: TripEvent) => {
-    setDetailEvent(e)
-    setDetailOpen(true)
-  }
-
-  const handleDetailEdit = (e: TripEvent) => {
-    setDetailOpen(false)
-    setDetailEvent(null)
-    setSelectedEvent(e)
-    setSheetOpen(true)
   }
 
   return (
@@ -124,7 +103,7 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
           </a>
         )}
         <button
-          onClick={openCreate}
+          onClick={() => onCreate(day.id)}
           aria-label="新增行程"
           className="w-11 h-11 -my-2 -mr-1.5 flex items-center justify-center shrink-0"
         >
@@ -139,7 +118,7 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
           {events.map((event, i) => (
             <span key={event.id} className="contents">
               {i === nowIndex && <NowLine time={nowTime} />}
-              <SortableCard event={event} members={members} onOpen={openDetail} />
+              <SortableCard event={event} members={members} onOpen={(e) => onOpen(e, day.id)} />
             </span>
           ))}
           {nowIndex === events.length && events.length > 0 && <NowLine time={nowTime} />}
@@ -156,25 +135,6 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
           )}
         </div>
       </SortableContext>
-
-      <EventSheet
-        open={sheetOpen}
-        event={selectedEvent}
-        dayId={day.id}
-        tripId={tripId}
-        events={events}
-        members={members}
-        days={days}
-        onClose={() => setSheetOpen(false)}
-      />
-
-      <EventDetailSheet
-        open={detailOpen}
-        event={detailEvent}
-        members={members}
-        onClose={() => { setDetailOpen(false); setDetailEvent(null) }}
-        onEdit={handleDetailEdit}
-      />
     </section>
   )
 }

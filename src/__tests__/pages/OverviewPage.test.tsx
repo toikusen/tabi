@@ -6,6 +6,11 @@ import type { TripEvent } from '../../types'
 
 const mockUseTrip = vi.fn()
 vi.mock('../../hooks/useTrip', () => ({ useTrip: (id: string | null) => mockUseTrip(id) }))
+vi.mock('../../hooks/useSyncStatus', () => ({ useSyncStatus: () => 'connected' }))
+vi.mock('../../hooks/useAuth', () => ({
+  useAuth: () => ({ user: { email: 'sei@test.com', user_metadata: {} } }),
+}))
+vi.mock('../../components/SyncIndicator', () => ({ SyncIndicator: () => null }))
 
 import { OverviewPage } from '../../pages/OverviewPage'
 
@@ -34,6 +39,7 @@ function renderOverview(eventsByDay: Record<string, TripEvent[]>) {
       <Routes>
         <Route path="/trips/:tripId/overview" element={<OverviewPage />} />
         <Route path="/trips/:tripId" element={<div data-testid="timeline-page" />} />
+        <Route path="/trips/:tripId/settings" element={<div data-testid="settings-page" />} />
         <Route path="/" element={<div data-testid="trip-list" />} />
       </Routes>
     </MemoryRouter>
@@ -134,6 +140,12 @@ describe('OverviewPage', () => {
     renderOverview({})
     await userEvent.click(screen.getByRole('button', { name: '行程' }))
     expect(screen.getByTestId('timeline-page')).toBeInTheDocument()
+  })
+
+  it('opens settings from the header gear, same as the timeline', async () => {
+    renderOverview({})
+    await userEvent.click(screen.getByRole('button', { name: '旅程設定' }))
+    expect(screen.getByTestId('settings-page')).toBeInTheDocument()
   })
 
   it('gives every date header the same height once any day has a title', () => {
