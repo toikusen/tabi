@@ -6,6 +6,8 @@ export interface ForkItem {
   title: string
   location: string
   notes: string
+  /** Free-text name a group held before it had emails; read through groupEmails */
+  person?: string
 }
 
 export interface TripEvent {

@@ -177,6 +177,54 @@ describe('EventSheet', () => {
     })))
   })
 
+  it('adds a companion once however fast 加入 is tapped', async () => {
+    vi.mocked(addGuest).mockClear()
+    let resolve!: (key: string) => void
+    vi.mocked(addGuest).mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+    render(
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
+    )
+    fireEvent.click(screen.getByText('分頭行動'))
+    fireEvent.click(toggle(1, '＋ 旅伴'))
+    fireEvent.change(screen.getByLabelText('第 1 組新增旅伴'), { target: { value: '爸爸' } })
+
+    fireEvent.click(toggle(1, '加入'))
+    expect(toggle(1, '加入')).toBeDisabled()
+    fireEvent.click(toggle(1, '加入'))
+    resolve('guest:new')
+
+    await waitFor(() => expect(screen.queryByLabelText('第 1 組新增旅伴')).toBeNull())
+    expect(addGuest).toHaveBeenCalledTimes(1)
+  })
+
+  it('drops someone no longer in the trip from a saved group, so that group asks for a pick again', () => {
+    const stale: TripEvent = {
+      ...forkEvent,
+      fork_items: [{ emails: ['guest:gone'], others: false, title: '水族館', location: '', notes: '' }, forkEvent.fork_items![1]],
+    }
+    render(
+      <EventSheet open={true} event={stale} dayId="d1" tripId="t1" events={[stale]} members={members} onClose={() => {}} />
+    )
+    expect(screen.getByText('每一組都要選人和填活動')).toBeInTheDocument()
+    expect(screen.getByText('儲存')).toBeDisabled()
+  })
+
+  it('opens a group saved before emails with the member going by its name selected', () => {
+    const legacy = {
+      ...forkEvent,
+      fork_items: [
+        { person: 'Bob', title: '水族館', location: '', notes: '' },
+        { person: '同事', title: '國際通', location: '', notes: '' },
+      ],
+    } as unknown as TripEvent
+    render(
+      <EventSheet open={true} event={legacy} dayId="d1" tripId="t1" events={[legacy]} members={members} onClose={() => {}} />
+    )
+    expect(toggle(1, 'Bob')).toHaveAttribute('aria-pressed', 'true')
+    // 同事 is nobody in the trip: that group has to be picked again
+    expect(within(groupOf(2)).queryAllByRole('button', { pressed: true })).toHaveLength(0)
+  })
+
   it('confirms deletion through ConfirmSheet, not window.confirm', () => {
     const confirmSpy = vi.spyOn(window, 'confirm')
     render(

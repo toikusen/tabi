@@ -70,19 +70,16 @@ export function OverviewPage() {
     )
   /** A fork cell's body: the picked member's own activity, else every group as 組名:活動. */
   const forkBody = (event: TripEvent) => {
-    const own = picked ? groupFor(event, picked) : undefined
+    const own = picked ? groupFor(event, picked, trip.members) : undefined
     if (own) {
       return <span className="text-[12px] font-semibold text-text-strong line-clamp-2 break-words">{own.title}</span>
     }
-    return (event.fork_items ?? []).map((item, k) => {
-      const label = groupLabel(item, trip.members)
-      return (
-        <span key={k} className="block text-[12px] text-text-strong truncate">
-          {label && <span className="text-text-secondary">{label}:</span>}
-          <span className="font-semibold">{item.title}</span>
-        </span>
-      )
-    })
+    return (event.fork_items ?? []).map((item, k) => (
+      <span key={k} className="block text-[12px] text-text-strong truncate">
+        <span className="text-text-secondary">{groupLabel(item, trip.members)}:</span>
+        <span className="font-semibold">{item.title}</span>
+      </span>
+    ))
   }
   const filterChips = [
     { email: '', name: '全部' },

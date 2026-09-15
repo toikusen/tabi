@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Day, TripEvent, ForkItem, TripMember } from '../types'
 import { createEvent, updateEvent, deleteEvent, moveEvent, reorderEvents, addGuest } from '../lib/db'
+import { groupEmails } from '../lib/fork'
 import { fmtMD } from '../lib/dates'
 import { uploadEventImage } from '../lib/storage'
 import { compressImage } from '../lib/image'
@@ -56,6 +57,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   /** The fork group whose ＋ 旅伴 name input is open, if any */
   const [guestGroup, setGuestGroup] = useState<number | null>(null)
   const [guestName, setGuestName] = useState('')
+  const [addingGuest, setAddingGuest] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -65,14 +67,22 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setTimeEnd(event?.time_end ?? '')
     setLocation(event?.location ?? '')
     setNotes(event?.notes ?? '')
-    // Defaults fill in fields a group saved by an older build does not have
-    const items = (event?.fork_items ?? []).map((item) => ({ ...emptyFork(), ...item }))
+    // Defaults fill in fields a group saved by an older build does not have. Only current
+    // members stay in a group: a removed companion has no chip, so could never be taken out.
+    const items = (event?.fork_items ?? []).map((item) => ({
+      ...emptyFork(),
+      ...item,
+      emails: groupEmails(item, members).filter((email) => members.some((m) => m.email === email)),
+      person: undefined,
+    }))
     setForks(items.length >= 2 ? items : [items[0] ?? emptyFork(), items[1] ?? emptyFork()])
     setImageFile(null)
     setImageUrl(event?.image_url ?? null)
     setLinkUrl(event?.link_url ?? '')
     setTargetDayId(dayId)
     setGuestGroup(null)
+    // members stays out: its refetch after ＋ 旅伴 must not wipe the form mid-edit
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, open, dayId])
 
   useEffect(() => {
@@ -101,8 +111,10 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
    *  itself arrives with the realtime member refetch; the group holds their key already. */
   const handleAddGuest = async (i: number) => {
     const name = guestName.trim()
-    if (!name) return
+    if (!name || addingGuest) return
+    setAddingGuest(true)
     const key = await addGuest(tripId, name)
+    setAddingGuest(false)
     if (!key) {
       toast('新增旅伴失敗,請再試一次')
       return
@@ -415,7 +427,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
                           />
                           <button
                             type="submit"
-                            disabled={!guestName.trim()}
+                            disabled={!guestName.trim() || addingGuest}
                             className="shrink-0 text-xs font-semibold rounded-full px-3 py-1.5 bg-primary text-white disabled:opacity-40"
                           >
                             加入
