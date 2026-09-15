@@ -87,29 +87,36 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('group', { name: '看誰的行程' })).not.toBeInTheDocument()
   })
 
-  it('shows a picked member\'s group in place of 分頭行動', async () => {
+  it('sets fork events apart and lists every group until a member is picked', async () => {
     renderOverview({
       d1: [ev('l', '午餐', '12:30'), fork('f1', '14:00', [[['ming@test.com'], false, '美麗海水族館'], [[], true, '國際通']])],
       d2: [fork('f2', '10:00', [[['hua@test.com'], false, '首里城'], [['jie@test.com'], false, '海灘']])],
     })
+    const forkCell = (text: string) => screen.getByRole('button', { name: new RegExp(`^分頭行動.*${text}`) })
     const filter = screen.getByRole('group', { name: '看誰的行程' })
     // Every member of the trip, in trip order
     expect(within(filter).getAllByRole('button').map((b) => b.textContent)).toEqual(['全部', '阿明', '小華', '阿傑'])
     expect(within(filter).getByRole('button', { name: '全部' })).toHaveAttribute('aria-pressed', 'true')
 
-    await userEvent.click(within(filter).getByRole('button', { name: '阿明' }))
+    // A tinted card under a 分頭行動 heading, never a plain white one
+    expect(forkCell('美麗海水族館').className).toContain('bg-fork-bg-1')
+    expect(screen.getByRole('button', { name: /^午餐/ }).className).not.toContain('bg-fork-bg-1')
+    // 全部: every group, by name
+    expect(forkCell('美麗海水族館')).toHaveTextContent(/^分頭行動阿明:美麗海水族館其他人:國際通14:00$/)
+    expect(forkCell('首里城')).toHaveTextContent(/^分頭行動小華:首里城阿傑:海灘10:00$/)
 
+    await userEvent.click(within(filter).getByRole('button', { name: '阿明' }))
     expect(within(filter).getByRole('button', { name: '阿明' })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^美麗海水族館/ })).toBeInTheDocument()
-    expect(screen.queryByText('國際通')).not.toBeInTheDocument()
-    // Shared events stay, and a split with no group for 阿明 still reads 分頭行動
+    // 阿明's own activity alone, still headed 分頭行動
+    expect(forkCell('美麗海水族館')).toHaveTextContent(/^分頭行動美麗海水族館14:00$/)
+    // No group takes 阿明 on 10/13, so every group stays listed
+    expect(forkCell('首里城')).toHaveTextContent(/^分頭行動小華:首里城阿傑:海灘10:00$/)
     expect(screen.getByRole('button', { name: /^午餐/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^分頭行動/ })).toBeInTheDocument()
 
     // 小華 is named on 10/13 only; on 10/12 they go with 其他人
     await userEvent.click(within(filter).getByRole('button', { name: '小華' }))
-    expect(screen.getByRole('button', { name: /^國際通/ })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^首里城/ })).toBeInTheDocument()
+    expect(forkCell('國際通')).toHaveTextContent(/^分頭行動國際通14:00$/)
+    expect(forkCell('首里城')).toHaveTextContent(/^分頭行動首里城10:00$/)
   })
 
   it('marks today\'s column', () => {

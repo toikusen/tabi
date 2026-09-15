@@ -3,7 +3,7 @@ import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useTrip } from '../hooks/useTrip'
 import { fmtMD, groupByBand, todayStr, tripStatus } from '../lib/dates'
 import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
-import { groupFor } from '../lib/fork'
+import { groupFor, groupLabel } from '../lib/fork'
 import { Icon } from '../components/Icon'
 import { TripNav } from '../components/TripNav'
 import { EventSheet } from '../components/EventSheet'
@@ -61,11 +61,29 @@ export function OverviewPage() {
   const hasFork = days.some((day) => (eventsByDay[day.id] ?? []).some((event) => event.type === 'fork'))
   // A member who has since left the trip falls back to 全部
   const picked = trip.members.some((m) => m.email === person) ? person : ''
-  /** A fork event reads as the picked member's group, or 分頭行動 when no group takes them. */
-  const titleOf = (event: TripEvent) =>
-    event.type === 'fork'
-      ? (picked && groupFor(event, picked)?.title) || '分頭行動'
-      : event.title
+  const timeLine = (event: TripEvent) =>
+    (event.time_start || event.time_end) && (
+      // No spaces around the dash: a spaced range is wider than the column
+      <span className="block text-[11px] font-mono tabular-nums text-text-label truncate">
+        {[event.time_start, event.time_end].filter(Boolean).join('–')}
+      </span>
+    )
+  /** A fork cell's body: the picked member's own activity, else every group as 組名:活動. */
+  const forkBody = (event: TripEvent) => {
+    const own = picked ? groupFor(event, picked) : undefined
+    if (own) {
+      return <span className="text-[12px] font-semibold text-text-strong line-clamp-2 break-words">{own.title}</span>
+    }
+    return (event.fork_items ?? []).map((item, k) => {
+      const label = groupLabel(item, trip.members)
+      return (
+        <span key={k} className="block text-[12px] text-text-strong truncate">
+          {label && <span className="text-text-secondary">{label}:</span>}
+          <span className="font-semibold">{item.title}</span>
+        </span>
+      )
+    })
+  }
   const filterChips = [
     { email: '', name: '全部' },
     ...trip.members.map((m) => ({ email: m.email, name: m.display_name || m.email })),
@@ -141,34 +159,39 @@ export function OverviewPage() {
                       className={`px-1 py-2 align-top ${band ? 'border-t border-dashed border-icon-muted' : ''}`}
                     >
                       <div className={`flex flex-col gap-1 ${COLUMN_WIDTH}`}>
-                        {bandsByDay[i][band].map((event) => (
+                        {bandsByDay[i][band].map((event) => event.type === 'fork' ? (
+                          // Tinted with a leading bar like the timeline's fork card, so a split never passes for a white shared card
+                          <button
+                            key={event.id}
+                            onClick={() => setDetail({ event, dayId: day.id })}
+                            className="w-full bg-fork-bg-1 border-l-[3px] border-l-primary rounded-[8px] pl-1.5 pr-2 py-1.5 shadow-card text-left active:opacity-70 transition-opacity"
+                          >
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
+                              <Icon name="users" size={12} className="shrink-0" />
+                              分頭行動
+                            </span>
+                            {forkBody(event)}
+                            {timeLine(event)}
+                          </button>
+                        ) : (
                           <button
                             key={event.id}
                             onClick={() => setDetail({ event, dayId: day.id })}
                             className="w-full flex items-start gap-1.5 bg-white rounded-[8px] px-2 py-1.5 shadow-card text-left active:opacity-70 transition-opacity"
                           >
                             {/* mt-0.5 centres the 14px icon on the title's 18px line */}
-                            {event.type === 'fork' ? (
-                              <Icon name="users" size={14} className="shrink-0 mt-0.5 text-primary" />
-                            ) : (
-                              <img
-                                src={CATEGORY_IMAGE[eventCategory(event.title)]}
-                                alt=""
-                                aria-hidden="true"
-                                className="w-3.5 h-3.5 shrink-0 mt-0.5"
-                              />
-                            )}
+                            <img
+                              src={CATEGORY_IMAGE[eventCategory(event.title)]}
+                              alt=""
+                              aria-hidden="true"
+                              className="w-3.5 h-3.5 shrink-0 mt-0.5"
+                            />
                             <span className="min-w-0 flex-1">
                               {/* No `block` here: it would override line-clamp's -webkit-box and undo the clamp */}
                               <span className="text-[12px] font-semibold text-text-strong line-clamp-2 break-words">
-                                {titleOf(event)}
+                                {event.title}
                               </span>
-                              {(event.time_start || event.time_end) && (
-                                // No spaces around the dash: a spaced range is wider than the column
-                                <span className="block text-[11px] font-mono tabular-nums text-text-label truncate">
-                                  {[event.time_start, event.time_end].filter(Boolean).join('–')}
-                                </span>
-                              )}
+                              {timeLine(event)}
                             </span>
                           </button>
                         ))}
