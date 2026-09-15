@@ -1,5 +1,6 @@
-import type { Day, Trip, TripEvent } from '../types'
+import type { Day, Trip, TripEvent, TripMember } from '../types'
 import { fmtMD, fmtRange } from './dates'
+import { groupLabel } from './fork'
 import { toast } from './toast'
 
 function timeLabel(event: TripEvent): string {
@@ -7,7 +8,7 @@ function timeLabel(event: TripEvent): string {
   return event.time_start || event.time_end || ''
 }
 
-function eventLines(event: TripEvent): string[] {
+function eventLines(event: TripEvent, members: TripMember[]): string[] {
   const time = timeLabel(event)
   const head = time ? `${time} ` : ''
 
@@ -15,7 +16,7 @@ function eventLines(event: TripEvent): string[] {
     return [
       `${head}分頭行動`,
       ...(event.fork_items ?? []).map(
-        item => `  ・${item.person}:${item.title}${item.location ? `(${item.location})` : ''}`
+        item => `  ・${groupLabel(item, members)}:${item.title}${item.location ? `(${item.location})` : ''}`
       ),
     ]
   }
@@ -28,7 +29,7 @@ function eventLines(event: TripEvent): string[] {
 
 /** Plain-text itinerary, for people who are not in the trip (LINE, mail, 長輩). */
 export function itineraryText(
-  trip: Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes'>,
+  trip: Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes' | 'members'>,
   days: Day[],
   eventsByDay: Record<string, TripEvent[]>
 ): string {
@@ -43,7 +44,7 @@ export function itineraryText(
       lines.push('(尚未安排)')
       continue
     }
-    for (const event of events) lines.push(...eventLines(event))
+    for (const event of events) lines.push(...eventLines(event, trip.members))
   }
 
   return lines.join('\n')

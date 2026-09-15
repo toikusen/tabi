@@ -1,5 +1,8 @@
 export interface ForkItem {
-  person: string
+  /** Members in this group, by email so a rename keeps them in it */
+  emails: string[]
+  /** Also everyone named in no other group, companions without an account included */
+  others: boolean
   title: string
   location: string
   notes: string

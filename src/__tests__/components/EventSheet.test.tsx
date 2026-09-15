@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { EventSheet } from '../../components/EventSheet'
 import { createEvent, updateEvent, deleteEvent, moveEvent } from '../../lib/db'
 import { uploadEventImage } from '../../lib/storage'
@@ -79,60 +79,76 @@ describe('EventSheet', () => {
     expect(screen.getByDisplayValue('12:00')).toBeInTheDocument()
   })
 
-  it('switches to fork mode and shows text inputs when no members provided', () => {
-    render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
-    )
-    fireEvent.click(screen.getByText('分頭行動'))
-    expect(screen.getByPlaceholderText('第 1 組')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('第 2 組')).toBeInTheDocument()
-  })
+  const members = [
+    { email: 'a@test.com', display_name: 'Alice', avatar_url: '' },
+    { email: 'b@test.com', display_name: 'Bob', avatar_url: '' },
+  ]
+  const forkEvent: TripEvent = {
+    ...sharedEvent,
+    type: 'fork',
+    title: '',
+    fork_items: [
+      { emails: ['a@test.com'], others: false, title: '水族館', location: '', notes: '' },
+      { emails: [], others: true, title: '國際通', location: '', notes: '' },
+    ],
+  }
+  const groupOf = (n: number) => screen.getByRole('group', { name: `第 ${n} 組成員` })
+  const toggle = (n: number, name: string) => within(groupOf(n)).getByRole('button', { name })
 
-  it('switches to fork mode and shows member selects when members provided', () => {
-    const members = [
-      { email: 'a@test.com', display_name: 'Alice', avatar_url: '' },
-      { email: 'b@test.com', display_name: 'Bob', avatar_url: '' },
-    ]
+  it('offers every member and 其他人 as toggles in each fork group', () => {
     render(
       <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
     )
     fireEvent.click(screen.getByText('分頭行動'))
-    const selects = screen.getAllByRole('combobox')
-    expect(selects).toHaveLength(2)
-    expect(screen.getAllByText('Alice')).toHaveLength(2)
-    expect(screen.getAllByText('Bob')).toHaveLength(2)
+    for (const n of [1, 2]) {
+      expect(within(groupOf(n)).getAllByRole('button').map((b) => b.textContent)).toEqual(['Alice', 'Bob', '其他人'])
+    }
   })
 
-  it('keeps a fork group\'s saved person selected when no member goes by that name', () => {
-    const members = [{ email: 'a@test.com', display_name: 'Alice', avatar_url: '' }]
-    const forkEvent: TripEvent = {
-      ...sharedEvent,
-      type: 'fork',
-      title: '',
-      fork_items: [
-        { person: 'Alice', title: '水族館', location: '', notes: '' },
-        // Imported before members joined, or renamed since
-        { person: '同事', title: '國際通', location: '', notes: '' },
-      ],
-    }
+  it('pre-selects a saved group\'s members and 其他人', () => {
     render(
       <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
     )
-    expect(screen.getByLabelText('第 1 組成員')).toHaveValue('Alice')
-    expect(screen.getByLabelText('第 2 組成員')).toHaveValue('同事')
+    expect(toggle(1, 'Alice')).toHaveAttribute('aria-pressed', 'true')
+    expect(toggle(1, 'Bob')).toHaveAttribute('aria-pressed', 'false')
+    expect(toggle(2, '其他人')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps a member, and 其他人, to one group at a time', () => {
+    render(
+      <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
+    )
+    // Alice is taken by group 1, 其他人 by group 2
+    expect(toggle(2, 'Alice')).toBeDisabled()
+    expect(toggle(1, '其他人')).toBeDisabled()
+    expect(toggle(2, 'Bob')).toBeEnabled()
+  })
+
+  it('saves each group\'s members by email', async () => {
+    render(
+      <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
+    )
+    fireEvent.click(toggle(2, 'Bob'))
+    fireEvent.click(screen.getByText('儲存'))
+    await waitFor(() => expect(updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({
+      fork_items: [
+        expect.objectContaining({ emails: ['a@test.com'], others: false, title: '水族館' }),
+        expect.objectContaining({ emails: ['b@test.com'], others: true, title: '國際通' }),
+      ],
+    })))
   })
 
   it('adds a third fork group with ＋ 新增一組', () => {
     render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
     )
     fireEvent.click(screen.getByText('分頭行動'))
     fireEvent.click(screen.getByText('＋ 新增一組'))
-    expect(screen.getByPlaceholderText('第 3 組')).toBeInTheDocument()
+    expect(groupOf(3)).toBeInTheDocument()
 
     // removable back down to two
     fireEvent.click(screen.getByLabelText('移除第 3 組'))
-    expect(screen.queryByPlaceholderText('第 3 組')).toBeNull()
+    expect(screen.queryByRole('group', { name: '第 3 組成員' })).toBeNull()
   })
 
   it('confirms deletion through ConfirmSheet, not window.confirm', () => {
@@ -194,23 +210,23 @@ describe('EventSheet', () => {
 
   it('blocks saving a fork event with an empty group', () => {
     render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
     )
     fireEvent.click(screen.getByText('分頭行動'))
 
     expect(screen.getByText('儲存')).toBeDisabled()
-    expect(screen.getByText('每一組都要填人名和活動')).toBeInTheDocument()
+    expect(screen.getByText('每一組都要選人和填活動')).toBeInTheDocument()
   })
 
-  it('allows saving once every group has a person and an activity', () => {
+  it('allows saving once every group has someone and an activity', () => {
     render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
     )
     fireEvent.click(screen.getByText('分頭行動'))
 
-    fireEvent.change(screen.getByLabelText('第 1 組'), { target: { value: 'A' } })
+    fireEvent.click(toggle(1, 'Alice'))
     fireEvent.change(screen.getByLabelText('第 1 組活動'), { target: { value: '潛水' } })
-    fireEvent.change(screen.getByLabelText('第 2 組'), { target: { value: 'B' } })
+    fireEvent.click(toggle(2, '其他人'))
     fireEvent.change(screen.getByLabelText('第 2 組活動'), { target: { value: '購物' } })
 
     expect(screen.getByText('儲存')).toBeEnabled()
@@ -242,20 +258,20 @@ describe('EventSheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('treats whitespace-only fields as empty', () => {
+  it('treats a whitespace-only activity as empty', () => {
     render(
-      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} onClose={() => {}} />
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
     )
     fireEvent.click(screen.getByText('分頭行動'))
 
-    // Group 1's person is whitespace-only; everything else is filled with real text.
-    fireEvent.change(screen.getByLabelText('第 1 組'), { target: { value: '   ' } })
-    fireEvent.change(screen.getByLabelText('第 1 組活動'), { target: { value: '潛水' } })
-    fireEvent.change(screen.getByLabelText('第 2 組'), { target: { value: 'B' } })
+    // Group 1's activity is whitespace-only; everything else is filled in.
+    fireEvent.click(toggle(1, 'Alice'))
+    fireEvent.change(screen.getByLabelText('第 1 組活動'), { target: { value: '   ' } })
+    fireEvent.click(toggle(2, 'Bob'))
     fireEvent.change(screen.getByLabelText('第 2 組活動'), { target: { value: '購物' } })
 
     expect(screen.getByText('儲存')).toBeDisabled()
-    expect(screen.getByText('每一組都要填人名和活動')).toBeInTheDocument()
+    expect(screen.getByText('每一組都要選人和填活動')).toBeInTheDocument()
   })
 })
 

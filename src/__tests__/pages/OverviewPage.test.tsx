@@ -9,8 +9,10 @@ vi.mock('../../hooks/useTrip', () => ({ useTrip: (id: string | null) => mockUseT
 
 import { OverviewPage } from '../../pages/OverviewPage'
 
+const member = (email: string, display_name: string) => ({ email, display_name, avatar_url: '' })
 const trip = {
-  id: 't1', name: '沖繩', owner_email: 'sei@test.com', members: [],
+  id: 't1', name: '沖繩', owner_email: 'sei@test.com',
+  members: [member('ming@test.com', '阿明'), member('hua@test.com', '小華'), member('jie@test.com', '阿傑')],
   start_date: '2026-10-12', end_date: '2026-10-13', notes: '',
 }
 const days = [
@@ -20,9 +22,9 @@ const days = [
 const ev = (id: string, title: string, time_start: string, type: TripEvent['type'] = 'shared'): TripEvent => ({
   id, type, title, time_start, time_end: '', location: '', notes: '', sort_order: 0,
 })
-const fork = (id: string, time_start: string, groups: [person: string, title: string][]): TripEvent => ({
+const fork = (id: string, time_start: string, groups: [emails: string[], others: boolean, title: string][]): TripEvent => ({
   ...ev(id, '', time_start, 'fork'),
-  fork_items: groups.map(([person, title]) => ({ person, title, location: '', notes: '' })),
+  fork_items: groups.map(([emails, others, title]) => ({ emails, others, title, location: '', notes: '' })),
 })
 
 function renderOverview(eventsByDay: Record<string, TripEvent[]>) {
@@ -85,13 +87,13 @@ describe('OverviewPage', () => {
     expect(screen.queryByRole('group', { name: '看誰的行程' })).not.toBeInTheDocument()
   })
 
-  it('shows a picked person\'s own group in place of 分頭行動', async () => {
+  it('shows a picked member\'s group in place of 分頭行動', async () => {
     renderOverview({
-      d1: [ev('l', '午餐', '12:30'), fork('f1', '14:00', [['阿明', '美麗海水族館'], ['小華', '國際通']])],
-      d2: [fork('f2', '10:00', [['小華', '首里城'], ['阿傑', '海灘']])],
+      d1: [ev('l', '午餐', '12:30'), fork('f1', '14:00', [[['ming@test.com'], false, '美麗海水族館'], [[], true, '國際通']])],
+      d2: [fork('f2', '10:00', [[['hua@test.com'], false, '首里城'], [['jie@test.com'], false, '海灘']])],
     })
     const filter = screen.getByRole('group', { name: '看誰的行程' })
-    // Everyone who ever splits off, once each, in order of appearance
+    // Every member of the trip, in trip order
     expect(within(filter).getAllByRole('button').map((b) => b.textContent)).toEqual(['全部', '阿明', '小華', '阿傑'])
     expect(within(filter).getByRole('button', { name: '全部' })).toHaveAttribute('aria-pressed', 'true')
 
@@ -100,9 +102,14 @@ describe('OverviewPage', () => {
     expect(within(filter).getByRole('button', { name: '阿明' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^美麗海水族館/ })).toBeInTheDocument()
     expect(screen.queryByText('國際通')).not.toBeInTheDocument()
-    // Shared events stay, and a split 阿明 sits out still reads 分頭行動
+    // Shared events stay, and a split with no group for 阿明 still reads 分頭行動
     expect(screen.getByRole('button', { name: /^午餐/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^分頭行動/ })).toBeInTheDocument()
+
+    // 小華 is named on 10/13 only; on 10/12 they go with 其他人
+    await userEvent.click(within(filter).getByRole('button', { name: '小華' }))
+    expect(screen.getByRole('button', { name: /^國際通/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^首里城/ })).toBeInTheDocument()
   })
 
   it('marks today\'s column', () => {

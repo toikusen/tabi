@@ -12,6 +12,10 @@ const trip = {
   start_date: '2026-10-12',
   end_date: '2026-10-15',
   notes: '',
+  members: [
+    { email: 'sei@test.com', display_name: 'Sei', avatar_url: '' },
+    { email: 'ann@test.com', display_name: 'Ann', avatar_url: '' },
+  ],
 }
 
 const days: Day[] = [
@@ -54,14 +58,14 @@ describe('itineraryText', () => {
       d1: [event({
         type: 'fork', title: '', location: '',
         fork_items: [
-          { person: 'Sei', title: '逛街', location: '國際通', notes: '' },
-          { person: 'Ann', title: '潛水', location: '', notes: '' },
+          { emails: ['sei@test.com'], others: false, title: '逛街', location: '國際通', notes: '' },
+          { emails: ['ann@test.com'], others: true, title: '潛水', location: '', notes: '' },
         ],
       })],
     })
     expect(text).toContain('09:00–11:00 分頭行動')
     expect(text).toContain('  ・Sei:逛街(國際通)')
-    expect(text).toContain('  ・Ann:潛水')
+    expect(text).toContain('  ・Ann、其他人:潛水')
   })
 })
 

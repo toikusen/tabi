@@ -2,15 +2,17 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { EventCard } from './EventCard'
 import { ForkCard } from './ForkCard'
-import type { TripEvent } from '../types'
+import type { TripEvent, TripMember } from '../types'
 
 /** A timeline card with its drag grip. Draggable from any list — a day, or the
  *  wishlist — since the trip's single DndContext owns all of them. */
 export function SortableCard({
   event,
+  members,
   onOpen,
 }: {
   event: TripEvent
+  members: TripMember[]
   onOpen: (e: TripEvent) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -51,7 +53,7 @@ export function SortableCard({
         </span>
       </span>
       {event.type === 'fork' ? (
-        <ForkCard event={event} onClick={onOpen} />
+        <ForkCard event={event} members={members} onClick={onOpen} />
       ) : (
         <EventCard event={event} onClick={onOpen} />
       )}

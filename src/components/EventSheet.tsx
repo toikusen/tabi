@@ -22,7 +22,7 @@ interface Props {
   onClose: () => void
 }
 
-const emptyFork = (): ForkItem => ({ person: '', title: '', location: '', notes: '' })
+const emptyFork = (): ForkItem => ({ emails: [], others: false, title: '', location: '', notes: '' })
 
 const TIME_PRESETS = [
   { label: '早上', start: '09:00', end: '12:00' },
@@ -62,7 +62,8 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setTimeEnd(event?.time_end ?? '')
     setLocation(event?.location ?? '')
     setNotes(event?.notes ?? '')
-    const items = event?.fork_items ?? []
+    // Defaults fill in fields a group saved by an older build does not have
+    const items = (event?.fork_items ?? []).map((item) => ({ ...emptyFork(), ...item }))
     setForks(items.length >= 2 ? items : [items[0] ?? emptyFork(), items[1] ?? emptyFork()])
     setImageFile(null)
     setImageUrl(event?.image_url ?? null)
@@ -83,11 +84,14 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   if (!open) return null
 
   const forkIncomplete = type === 'fork' && (
-    forks.length < 2 || forks.some(f => !f.person.trim() || !f.title.trim())
+    forks.length < 2 || forks.some(f => (!f.emails.length && !f.others) || !f.title.trim())
   )
   const blockedReason = type === 'shared'
     ? (title.trim() ? null : '請輸入行程名稱')
-    : (forkIncomplete ? '每一組都要填人名和活動' : null)
+    : (forkIncomplete ? '每一組都要選人和填活動' : null)
+
+  const updateFork = (i: number, patch: Partial<ForkItem>) =>
+    setForks(forks.map((f, j) => (j === i ? { ...f, ...patch } : f)))
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -343,35 +347,39 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
             <div className="flex flex-col gap-2 mb-2">
               {forks.map((item, i) => (
                 <div key={i} className="bg-surface-subtle rounded-[8px] p-2 flex flex-col gap-1.5">
-                  <div className="flex items-center gap-1.5">
-                    {members.length > 0 ? (
-                      <select
-                        className={`${inputCls} !bg-white`}
-                        value={item.person}
-                        onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, person: e.target.value } : f))}
-                        aria-label={`第 ${i + 1} 組成員`}
-                      >
-                        <option value="">選擇成員</option>
-                        {/* A name from before members joined, or from before a rename, matches no
-                            member; without its own option the select silently shows 選擇成員 */}
-                        {item.person && !members.some((m) => (m.display_name || m.email) === item.person) && (
-                          <option value={item.person}>{item.person}</option>
-                        )}
-                        {members.map((m) => (
-                          <option key={m.email} value={m.display_name || m.email}>
+                  <div className="flex items-start gap-1.5">
+                    <div role="group" aria-label={`第 ${i + 1} 組成員`} className="flex-1 flex flex-wrap gap-1.5">
+                      {members.map((m) => {
+                        const on = item.emails.includes(m.email)
+                        return (
+                          <button
+                            key={m.email}
+                            onClick={() => updateFork(i, {
+                              emails: on ? item.emails.filter((email) => email !== m.email) : [...item.emails, m.email],
+                            })}
+                            aria-pressed={on}
+                            // One person is in one place at a time
+                            disabled={forks.some((f, j) => j !== i && f.emails.includes(m.email))}
+                            className={`text-xs font-semibold rounded-full px-3 py-1.5 disabled:opacity-40 ${
+                              on ? 'bg-primary text-white' : 'bg-white text-text-secondary'
+                            }`}
+                          >
                             {m.display_name || m.email}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        className={`${inputCls} !bg-white`}
-                        placeholder={`第 ${i + 1} 組`}
-                        aria-label={`第 ${i + 1} 組`}
-                        value={item.person}
-                        onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, person: e.target.value } : f))}
-                      />
-                    )}
+                          </button>
+                        )
+                      })}
+                      {/* Everyone named in no other group, companions without an account included */}
+                      <button
+                        onClick={() => updateFork(i, { others: !item.others })}
+                        aria-pressed={item.others}
+                        disabled={forks.some((f, j) => j !== i && f.others)}
+                        className={`text-xs font-semibold rounded-full px-3 py-1.5 disabled:opacity-40 ${
+                          item.others ? 'bg-primary text-white' : 'bg-white text-text-secondary'
+                        }`}
+                      >
+                        其他人
+                      </button>
+                    </div>
                     {forks.length > 2 && (
                       <button
                         onClick={() => setForks(forks.filter((_, j) => j !== i))}

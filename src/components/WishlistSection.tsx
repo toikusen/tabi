@@ -48,7 +48,7 @@ export function WishlistSection({ tripId, days, members, events }: Props) {
       <SortableContext id={WISHLIST} items={events.map((e) => e.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex flex-col gap-2 mt-3">
           {events.map((event) => (
-            <SortableCard key={event.id} event={event} onOpen={open} />
+            <SortableCard key={event.id} event={event} members={members} onOpen={open} />
           ))}
 
           {events.length === 0 && (

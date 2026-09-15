@@ -1,17 +1,20 @@
 import { useState, useEffect } from 'react'
-import type { TripEvent } from '../types'
+import type { TripEvent, TripMember } from '../types'
 import { BottomSheet } from './BottomSheet'
 import { mapsUrl } from '../lib/dates'
+import { groupLabel } from '../lib/fork'
 
 interface Props {
   open: boolean
   event: TripEvent | null
+  /** Resolves a fork group's emails to names */
+  members: TripMember[]
   onClose: () => void
   onEdit: (event: TripEvent) => void
   hideEdit?: boolean
 }
 
-export function EventDetailSheet({ open, event, onClose, onEdit, hideEdit }: Props) {
+export function EventDetailSheet({ open, event, members, onClose, onEdit, hideEdit }: Props) {
   const [zoom, setZoom] = useState(false)
   const [imgError, setImgError] = useState(false)
   // The sheet stays mounted between openings, so reset per subject.
@@ -88,7 +91,7 @@ export function EventDetailSheet({ open, event, onClose, onEdit, hideEdit }: Pro
             <div className="flex flex-col gap-2">
               {(event.fork_items ?? []).map((item, i) => (
                 <div key={i} className="bg-surface-subtle border border-border rounded-[8px] p-3">
-                  <p className="text-[11px] font-bold text-primary mb-1">{item.person}</p>
+                  <p className="text-[11px] font-bold text-primary mb-1">{groupLabel(item, members)}</p>
                   <p className="text-sm font-semibold text-text-strong">{item.title}</p>
                   {item.location && (
                     <p className="text-xs text-text-secondary mt-0.5">{item.location}</p>

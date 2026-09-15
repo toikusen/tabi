@@ -1,9 +1,12 @@
-import type { TripEvent, ForkItem } from '../types'
+import type { TripEvent, ForkItem, TripMember } from '../types'
 import { mapsUrl } from '../lib/dates'
+import { groupLabel } from '../lib/fork'
 import { Icon } from './Icon'
 
 interface Props {
   event: TripEvent
+  /** Resolves each group's emails to names */
+  members: TripMember[]
   onClick: (event: TripEvent) => void
 }
 
@@ -15,7 +18,7 @@ const GROUP_STYLES = [
 ]
 const NAME_COLORS = ['text-primary', 'text-text-secondary', 'text-identity-2', 'text-identity-5']
 
-export function ForkCard({ event, onClick }: Props) {
+export function ForkCard({ event, members, onClick }: Props) {
   const items: ForkItem[] = event.fork_items ?? []
   const time =
     event.time_start && event.time_end
@@ -49,7 +52,7 @@ export function ForkCard({ event, onClick }: Props) {
             className={`border-l-[3px] border rounded-[8px] p-2 ${GROUP_STYLES[i % GROUP_STYLES.length]}`}
           >
             <span className={`inline-block text-[10px] font-bold mb-1 ${NAME_COLORS[i % NAME_COLORS.length]}`}>
-              {item.person}
+              {groupLabel(item, members)}
             </span>
             <p className="text-[13px] font-semibold text-text-strong">{item.title}</p>
             {item.location && (

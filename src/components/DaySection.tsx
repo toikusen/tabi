@@ -139,7 +139,7 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
           {events.map((event, i) => (
             <span key={event.id} className="contents">
               {i === nowIndex && <NowLine time={nowTime} />}
-              <SortableCard event={event} onOpen={openDetail} />
+              <SortableCard event={event} members={members} onOpen={openDetail} />
             </span>
           ))}
           {nowIndex === events.length && events.length > 0 && <NowLine time={nowTime} />}
@@ -171,6 +171,7 @@ export function DaySection({ day, tripId, members, events, days = [] }: Props) {
       <EventDetailSheet
         open={detailOpen}
         event={detailEvent}
+        members={members}
         onClose={() => { setDetailOpen(false); setDetailEvent(null) }}
         onEdit={handleDetailEdit}
       />
