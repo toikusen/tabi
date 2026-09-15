@@ -52,7 +52,16 @@ describe('MembersSection', () => {
     await waitFor(() => expect(input).toHaveValue(''))
   })
 
-  it('binds a companion without an account to an account that joined, only once confirmed', async () => {
+  it('lets a member bind a companion only to their own account, since binding renames it', () => {
+    render(<MembersSection trip={trip} currentEmail="bro@test.com" />)
+    fireEvent.click(screen.getByRole('button', { name: '綁定' }))
+
+    const picker = screen.getByRole('group', { name: '爸爸是哪個帳號' })
+    expect(within(picker).getAllByRole('button').map((b) => b.textContent)).toEqual(['昱達 bro@test.com'])
+    expect(within(picker).getByText(/綁到別人的帳號請找主揪/)).toBeInTheDocument()
+  })
+
+  it('lets the owner bind a companion to any account that joined, only once confirmed', async () => {
     const joined = {
       ...trip,
       members: [
@@ -61,7 +70,7 @@ describe('MembersSection', () => {
         { email: 'dad@test.com', display_name: '杜大明', avatar_url: '' },
       ],
     }
-    render(<MembersSection trip={joined} currentEmail="bro@test.com" />)
+    render(<MembersSection trip={joined} currentEmail="owner@test.com" />)
     // Only companions without an account offer 綁定
     const bind = screen.getAllByRole('button', { name: '綁定' })
     expect(bind).toHaveLength(2)

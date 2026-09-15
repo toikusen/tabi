@@ -25,7 +25,8 @@ export function MembersSection({ trip, currentEmail }: Props) {
   const [bindPick, setBindPick] = useState<{ guest: Trip['members'][number]; account: Trip['members'][number] } | null>(null)
 
   const isOwner = trip.owner_email === currentEmail
-  const accounts = trip.members.filter((m) => !isGuest(m.email))
+  // Binding gives the account the companion's name, so a member binds only to their own account (017)
+  const bindable = trip.members.filter((m) => !isGuest(m.email) && (isOwner || m.email === currentEmail))
 
   const handleBind = async () => {
     if (!bindPick) return
@@ -117,8 +118,10 @@ export function MembersSection({ trip, currentEmail }: Props) {
             {binding === member.email && (
               // Once they have joined through the link: pick the account that is really them
               <div role="group" aria-label={`${member.display_name}是哪個帳號`} className="mt-2 ml-11 flex flex-col gap-1.5">
-                <p className="text-[11px] text-text-label">「{member.display_name}」是哪個帳號?</p>
-                {accounts.map((account) => (
+                <p className="text-[11px] text-text-label">
+                  {isOwner ? `「${member.display_name}」是哪個帳號?` : `「${member.display_name}」是你嗎?綁到別人的帳號請找主揪。`}
+                </p>
+                {bindable.map((account) => (
                   <button
                     key={account.email}
                     onClick={() => setBindPick({ guest: member, account })}
