@@ -1,16 +1,14 @@
-import { useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { WISHLIST } from '../lib/db'
 import { SortableCard } from './SortableCard'
-import { EventSheet } from './EventSheet'
-import type { Day, TripEvent, TripMember } from '../types'
+import type { TripEvent, TripMember } from '../types'
 
 interface Props {
-  tripId: string
-  days: Day[]
   members: TripMember[]
   events: TripEvent[]
+  /** Opens the page's event sheet; null is a blank one. */
+  onOpen: (event: TripEvent | null) => void
 }
 
 /**
@@ -22,15 +20,8 @@ interface Props {
  * out only works while it is open. Opening it is one tap, and the date picker
  * covers the closed case.
  */
-export function WishlistSection({ tripId, days, members, events }: Props) {
-  const [sheetOpen, setSheetOpen] = useState(false)
-  const [selected, setSelected] = useState<TripEvent | null>(null)
+export function WishlistSection({ members, events, onOpen }: Props) {
   const { setNodeRef, isOver } = useDroppable({ id: WISHLIST })
-
-  const open = (event: TripEvent | null) => {
-    setSelected(event)
-    setSheetOpen(true)
-  }
 
   return (
     <details
@@ -48,7 +39,7 @@ export function WishlistSection({ tripId, days, members, events }: Props) {
       <SortableContext id={WISHLIST} items={events.map((e) => e.id)} strategy={verticalListSortingStrategy}>
         <div ref={setNodeRef} className="flex flex-col gap-2 mt-3">
           {events.map((event) => (
-            <SortableCard key={event.id} event={event} members={members} onOpen={open} />
+            <SortableCard key={event.id} event={event} members={members} onOpen={onOpen} />
           ))}
 
           {events.length === 0 && (
@@ -56,24 +47,13 @@ export function WishlistSection({ tripId, days, members, events }: Props) {
           )}
 
           <button
-            onClick={() => open(null)}
+            onClick={() => onOpen(null)}
             className="w-full border border-dashed border-icon-muted rounded-[8px] py-2.5 text-xs font-semibold text-primary"
           >
             ＋ 新增想去的地方
           </button>
         </div>
       </SortableContext>
-
-      <EventSheet
-        open={sheetOpen}
-        event={selected}
-        dayId={null}
-        tripId={tripId}
-        events={events}
-        members={members}
-        days={days}
-        onClose={() => setSheetOpen(false)}
-      />
     </details>
   )
 }
