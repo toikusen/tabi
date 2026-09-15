@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { EventSheet } from '../../components/EventSheet'
-import { createEvent, updateEvent, deleteEvent, moveEvent } from '../../lib/db'
+import { createEvent, updateEvent, deleteEvent, moveEvent, addGuest } from '../../lib/db'
 import { uploadEventImage } from '../../lib/storage'
 import { compressImage } from '../../lib/image'
 import { toast } from '../../lib/toast'
@@ -13,6 +13,7 @@ vi.mock('../../lib/db', () => ({
   deleteEvent: vi.fn().mockResolvedValue({ ok: true }),
   moveEvent: vi.fn().mockResolvedValue({ ok: true }),
   reorderEvents: vi.fn().mockResolvedValue({ ok: true }),
+  addGuest: vi.fn().mockResolvedValue('guest:new'),
 }))
 
 vi.mock('../../lib/storage', () => ({
@@ -101,7 +102,7 @@ describe('EventSheet', () => {
     )
     fireEvent.click(screen.getByText('分頭行動'))
     for (const n of [1, 2]) {
-      expect(within(groupOf(n)).getAllByRole('button').map((b) => b.textContent)).toEqual(['Alice', 'Bob', '其他人'])
+      expect(within(groupOf(n)).getAllByRole('button').map((b) => b.textContent)).toEqual(['Alice', 'Bob', '其他人', '＋ 旅伴'])
     }
   })
 
@@ -149,6 +150,31 @@ describe('EventSheet', () => {
     // removable back down to two
     fireEvent.click(screen.getByLabelText('移除第 3 組'))
     expect(screen.queryByRole('group', { name: '第 3 組成員' })).toBeNull()
+  })
+
+  it('adds a companion without an account from a fork group, straight into that group', async () => {
+    render(
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
+    )
+    fireEvent.click(screen.getByText('分頭行動'))
+
+    fireEvent.click(toggle(1, '＋ 旅伴'))
+    fireEvent.change(screen.getByLabelText('第 1 組新增旅伴'), { target: { value: ' 爸爸 ' } })
+    fireEvent.click(toggle(1, '加入'))
+    await waitFor(() => expect(addGuest).toHaveBeenCalledWith('t1', '爸爸'))
+    await waitFor(() => expect(screen.queryByLabelText('第 1 組新增旅伴')).toBeNull())
+
+    fireEvent.change(screen.getByLabelText('第 1 組活動'), { target: { value: '心齋橋' } })
+    fireEvent.click(toggle(2, '其他人'))
+    fireEvent.change(screen.getByLabelText('第 2 組活動'), { target: { value: '環球影城' } })
+    fireEvent.click(screen.getByText('儲存'))
+
+    await waitFor(() => expect(createEvent).toHaveBeenCalledWith('t1', 'd1', expect.objectContaining({
+      fork_items: [
+        expect.objectContaining({ emails: ['guest:new'], others: false, title: '心齋橋' }),
+        expect.objectContaining({ emails: [], others: true, title: '環球影城' }),
+      ],
+    })))
   })
 
   it('confirms deletion through ConfirmSheet, not window.confirm', () => {

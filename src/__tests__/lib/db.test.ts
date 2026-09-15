@@ -40,10 +40,29 @@ import {
   removeMember,
   updateMyDisplayName,
   subscribeToTripData,
+  addGuest,
 } from '../../lib/db'
 
 beforeEach(() => {
   vi.clearAllMocks()
+})
+
+describe('addGuest', () => {
+  it('adds a member keyed guest:<uuid>, with no @ to pass for a login, and returns the key', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+
+    const key = await addGuest('t1', '爸爸')
+
+    expect(key).toMatch(/^guest:[0-9a-f-]{36}$/)
+    expect(mockFrom).toHaveBeenCalledWith('trip_members')
+    expect(insert).toHaveBeenCalledWith({ trip_id: 't1', user_email: key, display_name: '爸爸' })
+  })
+
+  it('returns null when the insert is refused', async () => {
+    mockFrom.mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: { message: 'rls' } }) })
+    expect(await addGuest('t1', '爸爸')).toBeNull()
+  })
 })
 
 describe('createTrip', () => {

@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { reportChannelStatus } from './realtime'
+import { GUEST_PREFIX } from './members'
 import type { Trip, TripMember, Day, TripEvent } from '../types'
 
 // --- Helpers ---
@@ -91,6 +92,14 @@ export async function removeMember(tripId: string, email: string): Promise<boole
     .eq('trip_id', tripId)
     .eq('user_email', email)
   return !error && (count ?? 0) > 0
+}
+
+/** Adds a companion with no account (a 長輩 without an email) by name; returns their member key, or null when refused. */
+export async function addGuest(tripId: string, name: string): Promise<string | null> {
+  const email = `${GUEST_PREFIX}${crypto.randomUUID()}`
+  const { error } = await supabase.from('trip_members')
+    .insert({ trip_id: tripId, user_email: email, display_name: name })
+  return error ? null : email
 }
 
 export type TripSummary = Pick<Trip, 'id' | 'name' | 'start_date' | 'end_date' | 'owner_email'> & {

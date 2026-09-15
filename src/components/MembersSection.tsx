@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { removeMember } from '../lib/db'
+import { addGuest, removeMember } from '../lib/db'
+import { isGuest } from '../lib/members'
 import { toast } from '../lib/toast'
 import { Icon } from './Icon'
 import { useInviteLink } from '../hooks/useInviteLink'
@@ -15,7 +16,24 @@ export function MembersSection({ trip, currentEmail }: Props) {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
 
+  const [guestName, setGuestName] = useState('')
+  const [addingGuest, setAddingGuest] = useState(false)
+
   const isOwner = trip.owner_email === currentEmail
+
+  const handleAddGuest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const name = guestName.trim()
+    if (!name) return
+    setAddingGuest(true)
+    const key = await addGuest(trip.id, name)
+    setAddingGuest(false)
+    if (!key) {
+      toast('新增失敗,請再試一次')
+      return
+    }
+    setGuestName('')
+  }
 
   const handleRemove = async (email: string) => {
     if (confirming !== email) {
@@ -48,14 +66,17 @@ export function MembersSection({ trip, currentEmail }: Props) {
               <p className="text-sm font-medium text-text-strong truncate">
                 {member.display_name || member.email}
               </p>
-              {member.display_name && (
+              {isGuest(member.email) ? (
+                <p className="text-[11px] text-text-label">未加入</p>
+              ) : member.display_name && (
                 <p className="text-[11px] text-text-label truncate">{member.email}</p>
               )}
               {trip.owner_email === member.email && (
                 <p className="text-[10px] text-primary font-semibold">主揪</p>
               )}
             </div>
-            {isOwner && member.email !== currentEmail && (
+            {/* A companion without an account is anyone's to remove; a real member only the owner's */}
+            {(isGuest(member.email) || (isOwner && member.email !== currentEmail)) && (
               <button
                 onClick={() => handleRemove(member.email)}
                 disabled={removing === member.email}
@@ -71,6 +92,24 @@ export function MembersSection({ trip, currentEmail }: Props) {
           </div>
         ))}
       </div>
+      {/* A 長輩 without an email, or anyone who will not join: named here, pickable in fork groups */}
+      <form onSubmit={handleAddGuest} className="flex gap-2 mb-3">
+        <input
+          value={guestName}
+          onChange={(e) => setGuestName(e.target.value)}
+          placeholder="沒有帳號的旅伴,例如爸媽"
+          aria-label="沒有帳號的旅伴名字"
+          maxLength={20}
+          className="flex-1 min-w-0 border border-border rounded-[8px] px-3 py-2 text-sm text-text-strong bg-white focus:outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={!guestName.trim() || addingGuest}
+          className="shrink-0 bg-bg text-primary rounded-[8px] px-3 text-sm font-semibold disabled:opacity-40"
+        >
+          ＋ 新增
+        </button>
+      </form>
       <div className="flex gap-2">
         <button
           onClick={handleShare}

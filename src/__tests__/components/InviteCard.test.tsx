@@ -21,4 +21,10 @@ describe('InviteCard', () => {
     const { container } = render(<InviteCard trip={trip(2)} />)
     expect(container).toBeEmptyDOMElement()
   })
+
+  it('keeps prompting when the only others are companions without an account', () => {
+    const solo = trip(1)
+    render(<InviteCard trip={{ ...solo, members: [...solo.members, { email: 'guest:dad', display_name: '爸爸', avatar_url: '' }] }} />)
+    expect(screen.getByRole('button', { name: '分享邀請連結' })).toBeInTheDocument()
+  })
 })

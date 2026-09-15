@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Day, TripEvent, ForkItem, TripMember } from '../types'
-import { createEvent, updateEvent, deleteEvent, moveEvent, reorderEvents } from '../lib/db'
+import { createEvent, updateEvent, deleteEvent, moveEvent, reorderEvents, addGuest } from '../lib/db'
 import { fmtMD } from '../lib/dates'
 import { uploadEventImage } from '../lib/storage'
 import { compressImage } from '../lib/image'
@@ -53,6 +53,9 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   const [previewSrc, setPreviewSrc] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  /** The fork group whose ＋ 旅伴 name input is open, if any */
+  const [guestGroup, setGuestGroup] = useState<number | null>(null)
+  const [guestName, setGuestName] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -69,6 +72,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setImageUrl(event?.image_url ?? null)
     setLinkUrl(event?.link_url ?? '')
     setTargetDayId(dayId)
+    setGuestGroup(null)
   }, [event, open, dayId])
 
   useEffect(() => {
@@ -92,6 +96,22 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
 
   const updateFork = (i: number, patch: Partial<ForkItem>) =>
     setForks(forks.map((f, j) => (j === i ? { ...f, ...patch } : f)))
+
+  /** Adds a companion with no account to the trip and straight into group i. The chip
+   *  itself arrives with the realtime member refetch; the group holds their key already. */
+  const handleAddGuest = async (i: number) => {
+    const name = guestName.trim()
+    if (!name) return
+    const key = await addGuest(tripId, name)
+    if (!key) {
+      toast('新增旅伴失敗,請再試一次')
+      return
+    }
+    setGuestGroup(null)
+    setGuestName('')
+    // Functional update: the forks captured before the await may be stale by now
+    setForks((prev) => prev.map((f, j) => (j === i ? { ...f, emails: [...f.emails, key] } : f)))
+  }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -379,6 +399,37 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
                       >
                         其他人
                       </button>
+                      {guestGroup === i ? (
+                        <form
+                          onSubmit={(e) => { e.preventDefault(); handleAddGuest(i) }}
+                          className="w-full flex gap-1.5"
+                        >
+                          <input
+                            autoFocus
+                            className={`${inputCls} !py-1.5`}
+                            placeholder="名字,例如爸爸"
+                            aria-label={`第 ${i + 1} 組新增旅伴`}
+                            maxLength={20}
+                            value={guestName}
+                            onChange={(e) => setGuestName(e.target.value)}
+                          />
+                          <button
+                            type="submit"
+                            disabled={!guestName.trim()}
+                            className="shrink-0 text-xs font-semibold rounded-full px-3 py-1.5 bg-primary text-white disabled:opacity-40"
+                          >
+                            加入
+                          </button>
+                        </form>
+                      ) : (
+                        // For a 長輩 with no account: joins the trip by name without leaving this sheet
+                        <button
+                          onClick={() => { setGuestGroup(i); setGuestName('') }}
+                          className="text-xs font-semibold rounded-full px-3 py-1.5 border border-dashed border-icon-muted text-primary"
+                        >
+                          ＋ 旅伴
+                        </button>
+                      )}
                     </div>
                     {forks.length > 2 && (
                       <button
