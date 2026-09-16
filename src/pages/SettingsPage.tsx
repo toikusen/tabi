@@ -79,13 +79,17 @@ export function SettingsPage() {
     setCopying(true)
     try {
       const newId = await copyTrip(tripId, name, startDate)
-      if (newId) navigate(`/trips/${newId}`, { replace: true })
-      else toast('複製失敗,請再試一次')
+      // The sheet stays open on failure so the name and date just typed survive
+      if (!newId) {
+        toast('複製失敗,請再試一次')
+        return
+      }
+      setCopyOpen(false)
+      navigate(`/trips/${newId}`, { replace: true })
     } catch {
       toast('複製失敗,請再試一次')
     } finally {
       setCopying(false)
-      setCopyOpen(false)
     }
   }
 

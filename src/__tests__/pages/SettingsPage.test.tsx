@@ -111,15 +111,22 @@ describe('SettingsPage copy trip', () => {
     expect(sheet.queryByLabelText('結束日期')).toBeNull()
   })
 
-  it('stays put and says so when the copy is refused', async () => {
+  it('keeps the sheet and what was typed in it when the copy is refused', async () => {
     mockCopyTrip.mockResolvedValue(null)
     renderPage()
 
     await userEvent.click(screen.getByRole('button', { name: '複製成新的旅程' }))
+    const name = screen.getByLabelText('新旅程名稱')
+    await userEvent.clear(name)
+    await userEvent.type(name, '明年沖繩')
     await userEvent.click(screen.getByRole('button', { name: '複製' }))
 
     expect(mockCopyTrip).toHaveBeenCalled()
     expect(screen.queryByTestId('trip-page')).toBeNull()
+    // Nothing to retype before trying again
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByLabelText('新旅程名稱')).toHaveValue('明年沖繩')
+    expect(screen.getByRole('button', { name: '複製' })).toBeEnabled()
   })
 
   it('will not copy under a blank name', async () => {
