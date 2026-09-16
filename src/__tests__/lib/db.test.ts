@@ -43,6 +43,8 @@ import {
   mergeGuest,
   copyEventsToDay,
   copyTrip,
+  getPublicTrip,
+  setTripShare,
 } from '../../lib/db'
 
 beforeEach(() => {
@@ -106,6 +108,55 @@ describe('createTrip', () => {
 
     mockRpc.mockResolvedValue({ data: null, error: null })
     await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow()
+  })
+})
+
+describe('setTripShare', () => {
+  it('mints a token when sharing is turned on', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: true, token: 'tok-1' }, error: null })
+
+    expect(await setTripShare('t1', true)).toEqual({ ok: true, token: 'tok-1' })
+    expect(mockRpc).toHaveBeenCalledWith('set_trip_share_rpc', { p_trip_id: 't1', p_enabled: true })
+  })
+
+  it('clears the token when sharing is turned off', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: true, token: null }, error: null })
+    expect(await setTripShare('t1', false)).toEqual({ ok: true, token: null })
+  })
+
+  it('reports a refusal rather than pretending the link changed', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: false }, error: null })
+    expect(await setTripShare('t1', true)).toEqual({ ok: false })
+
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await setTripShare('t1', true)).toEqual({ ok: false })
+  })
+})
+
+describe('getPublicTrip', () => {
+  const payload = {
+    name: '沖繩', start_date: '2031-02-01', end_date: '2031-02-02', notes: 'BR116',
+    days: [{ date: '2031-02-01', label: '飛行日', events: [] }],
+  }
+
+  it('reads an itinerary by its share token', async () => {
+    mockRpc.mockResolvedValue({ data: payload, error: null })
+
+    expect(await getPublicTrip('tok-1')).toEqual(payload)
+    expect(mockRpc).toHaveBeenCalledWith('public_trip_rpc', { p_token: 'tok-1' })
+  })
+
+  it('returns null for a revoked or unknown token', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    expect(await getPublicTrip('gone')).toBeNull()
+
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await getPublicTrip('gone')).toBeNull()
+  })
+
+  it('never asks the server about an empty token', async () => {
+    expect(await getPublicTrip('')).toBeNull()
+    expect(mockRpc).not.toHaveBeenCalled()
   })
 })
 

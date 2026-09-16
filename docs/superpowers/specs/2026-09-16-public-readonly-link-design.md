@@ -1,7 +1,7 @@
 # 免登入唯讀分享連結
 
 日期：2026-09-16
-狀態：待審核
+狀態：已實作
 
 ## 背景
 
@@ -138,8 +138,15 @@ public_trip_rpc(p_token uuid) returns jsonb
 同理不回傳 `avatar_url`（Google 頭像網址）與成員清單本身。
 
 這代表 `groupLabel` 的邏輯會有兩份實作（一份 TS、一份 SQL）。這是刻意
-付出的代價：少一個洩漏面，換一份需要同步的邏輯。兩邊的規則寫在
-`src/lib/fork.ts` 的註解與 migration 註解中互相指向。
+付出的代價：少一個洩漏面，換一份需要同步的邏輯。
+
+**兩份實作的排序不會完全一致。** `groupLabel` 依「旅程成員順序」排，而那個
+順序來自 `subscribeToTripData` 的巢狀 select，本身沒有任何保證，所以 SQL
+這邊沒有穩定的對象可以鏡像。SQL 改用 `user_email` 排序，至少是決定性的。
+
+結果是同一組人可能在 app 裡讀作「爸爸、媽媽」、在公開頁讀作
+「媽媽、爸爸」。名字相同、規則相同，只有順序可能不同。驗收條件因此訂為
+**名字集合、其他人的位置、未指定與 person 的 fallback 一致**，不比對順序。
 
 ### 不回傳的欄位
 
@@ -228,7 +235,8 @@ https://tabi-2g7.pages.dev/s/<token>     [複製]
 - `public_trip_rpc(null)` 回 null，不會配到任何 `share_token is null` 的旅程
 - 未登入（`role = anon`）確實讀得到已開啟的旅程
 - 回傳的 jsonb 裡不含任何 `@`，也不含 `guest:`
-- 分組標籤與 `groupLabel()` 對同一筆資料的輸出一致
+- 也不含想去清單、圖片網址、景點連結、`sort_order` 等內部欄位
+- 分組標籤解析出正確的名字與 `其他人`（順序不比對，理由見 §2）
 
 **前端**：
 

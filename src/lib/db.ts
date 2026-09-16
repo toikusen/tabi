@@ -147,6 +147,61 @@ export async function copyTrip(
   return data as string
 }
 
+// --- Read-only sharing (migration 021) ---
+
+/** One fork group as the public page gets it: a heading, never emails. */
+export interface PublicGroup {
+  label: string
+  title: string
+  location: string
+}
+
+export interface PublicEvent {
+  type: 'shared' | 'fork'
+  title: string
+  time_start: string
+  time_end: string
+  location: string
+  notes: string
+  groups: PublicGroup[]
+}
+
+/** The itinerary behind a share token. Deliberately the same range as
+ *  `itineraryText`: no wishlist, no images, no event links, no member list. */
+export interface PublicTrip {
+  name: string
+  start_date: string
+  end_date: string
+  notes: string
+  days: { date: string; label: string; events: PublicEvent[] }[]
+}
+
+/** Turns the read-only link on (minting a fresh token, which also revokes any
+ *  previous one) or off. Owner only, enforced in the RPC. */
+export async function setTripShare(
+  tripId: string,
+  enabled: boolean
+): Promise<{ ok: boolean; token?: string | null }> {
+  const { data, error } = await supabase.rpc('set_trip_share_rpc', {
+    p_trip_id: tripId,
+    p_enabled: enabled,
+  })
+  if (error || !data) return { ok: false }
+
+  const result = data as { ok?: boolean; token?: string | null }
+  return result.ok ? { ok: true, token: result.token ?? null } : { ok: false }
+}
+
+/** Reads a shared itinerary. Works signed out — that is the whole point.
+ *  null means the token is unknown, revoked, or the trip is gone. */
+export async function getPublicTrip(token: string): Promise<PublicTrip | null> {
+  if (!token) return null
+
+  const { data, error } = await supabase.rpc('public_trip_rpc', { p_token: token })
+  if (error || !data) return null
+  return data as PublicTrip
+}
+
 export async function deleteTrip(tripId: string): Promise<boolean> {
   // ponytail: best-effort image cleanup; if it fails we accept orphaned
   // storage objects rather than blocking deletion (periodic cleanup later)
@@ -326,6 +381,7 @@ export function subscribeToTripData(tripId: string, handlers: TripDataHandlers):
       start_date: data.start_date,
       end_date: data.end_date,
       notes: data.notes ?? '',
+      share_token: data.share_token ?? null,
       members: (data.trip_members as { user_email: string; display_name: string; avatar_url: string }[]).map(m => ({
         email: m.user_email,
         display_name: m.display_name,

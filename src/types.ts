@@ -47,4 +47,6 @@ export interface Trip {
   end_date: string
   /** Trip-level memo: flights, hotels, booking codes (migration 012) */
   notes: string
+  /** Read-only share link token; null when sharing is off (migration 021) */
+  share_token?: string | null
 }

@@ -8,6 +8,7 @@ import { toast } from '../lib/toast'
 import { itineraryText, shareItinerary } from '../lib/share'
 import { dayCount } from '../lib/dates'
 import { TripCopySheet } from '../components/TripCopySheet'
+import { ShareLinkSection } from '../components/ShareLinkSection'
 import { MembersSection } from '../components/MembersSection'
 import { TripNotesSection } from '../components/TripNotesSection'
 import { SavedBadge } from '../components/SavedBadge'
@@ -184,6 +185,8 @@ export function SettingsPage() {
           </button>
           <p className="text-[11px] text-text-label mt-2">產生純文字行程,給沒有安裝 App 的人看。</p>
         </section>
+
+        {trip && <ShareLinkSection trip={trip} isOwner={isOwner} />}
 
         <section className="bg-white rounded-[12px] p-4 border border-border">
           <p className="text-xs font-semibold text-text-label mb-3">複製旅程</p>
