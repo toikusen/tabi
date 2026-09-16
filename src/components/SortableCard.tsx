@@ -9,10 +9,13 @@ import type { TripEvent, TripMember } from '../types'
 export function SortableCard({
   event,
   members,
+  clashes = false,
   onOpen,
 }: {
   event: TripEvent
   members: TripMember[]
+  /** This event's time runs over another in the same day. */
+  clashes?: boolean
   onOpen: (e: TripEvent) => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
@@ -53,9 +56,9 @@ export function SortableCard({
         </span>
       </span>
       {event.type === 'fork' ? (
-        <ForkCard event={event} members={members} onClick={onOpen} />
+        <ForkCard event={event} members={members} clashes={clashes} onClick={onOpen} />
       ) : (
-        <EventCard event={event} onClick={onOpen} />
+        <EventCard event={event} clashes={clashes} onClick={onOpen} />
       )}
     </div>
   )

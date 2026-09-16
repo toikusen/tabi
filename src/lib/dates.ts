@@ -92,6 +92,34 @@ export function nowLineIndex(events: { time_start: string }[], now: string): num
   return index
 }
 
+/**
+ * Ids of the events in one day whose times run over each other.
+ *
+ * Only an event with both a start and a later end has a span, so an open-ended
+ * one is never reported — and neither is 23:00–01:00, which two HH:MM strings
+ * on a single day cannot express. Touching ends (…–12:00 then 12:00–…) are a
+ * handover, not a clash. Information only: the sheet still saves either way,
+ * because a half-planned day legitimately looks like this.
+ */
+export function overlappingIds(
+  events: { id: string; time_start: string; time_end: string }[]
+): Set<string> {
+  const spans = events.filter(e => e.time_start && e.time_end && e.time_start < e.time_end)
+  const clashing = new Set<string>()
+
+  // ponytail: O(n²) over one day's events, which is a handful. Sort-and-sweep
+  // if a day ever holds hundreds.
+  for (let i = 0; i < spans.length; i++) {
+    for (let j = i + 1; j < spans.length; j++) {
+      if (spans[i].time_start < spans[j].time_end && spans[j].time_start < spans[i].time_end) {
+        clashing.add(spans[i].id)
+        clashing.add(spans[j].id)
+      }
+    }
+  }
+  return clashing
+}
+
 /** Splits a day's events into 早 (before 11:00), 午 (before 17:00) and 晚 for
  *  the overview, keeping list order within each band. The cut points fall in
  *  the gaps of real trips, whose start times cluster at 9, 13 and 18.

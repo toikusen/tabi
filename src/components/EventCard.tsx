@@ -6,10 +6,12 @@ import { Icon } from './Icon'
 
 interface Props {
   event: TripEvent
+  /** This event's time runs over another in the same day. */
+  clashes?: boolean
   onClick: (event: TripEvent) => void
 }
 
-export function EventCard({ event, onClick }: Props) {
+export function EventCard({ event, clashes = false, onClick }: Props) {
   const [imgError, setImgError] = useState(false)
   const showThumbnail = !!event.image_url && !imgError
   const time =
@@ -46,7 +48,11 @@ export function EventCard({ event, onClick }: Props) {
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-semibold text-text-strong truncate">{event.title}</p>
           {time && (
-            <p className="text-[11px] font-mono tabular-nums text-text-label mt-0.5">{time}</p>
+            <p className="text-[11px] font-mono tabular-nums text-text-label mt-0.5 flex items-center gap-1.5">
+              {time}
+              {/* Information, not a block: a half-planned day legitimately looks like this */}
+              {clashes && <span className="font-sans font-semibold text-danger">時間重疊</span>}
+            </p>
           )}
           {event.location && (
             <p className="text-[11.5px] text-text-secondary mt-0.5 flex items-center gap-1.5">

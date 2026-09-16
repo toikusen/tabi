@@ -3,7 +3,7 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { updateDayLabel } from '../lib/db'
 import { toast } from '../lib/toast'
-import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl } from '../lib/dates'
+import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl, overlappingIds } from '../lib/dates'
 import { Icon } from './Icon'
 import { SortableCard } from './SortableCard'
 import type { Day, TripEvent, TripMember } from '../types'
@@ -41,6 +41,7 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
   const nowTime = hhmm(now)
   const nowIndex = isToday ? nowLineIndex(events, nowTime) : -1
   const routeUrl = dayRouteUrl(events.map((e) => e.location))
+  const clashing = overlappingIds(events)
 
   /** The title input is uncontrolled and mounts fresh on every edit, so it
    *  always starts from the live label — a tripmate's rename that arrived
@@ -118,7 +119,12 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
           {events.map((event, i) => (
             <span key={event.id} className="contents">
               {i === nowIndex && <NowLine time={nowTime} />}
-              <SortableCard event={event} members={members} onOpen={(e) => onOpen(e, day.id)} />
+              <SortableCard
+                event={event}
+                members={members}
+                clashes={clashing.has(event.id)}
+                onOpen={(e) => onOpen(e, day.id)}
+              />
             </span>
           ))}
           {nowIndex === events.length && events.length > 0 && <NowLine time={nowTime} />}

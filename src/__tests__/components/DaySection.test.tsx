@@ -113,6 +113,46 @@ describe('DaySection label editing', () => {
   })
 })
 
+describe('DaySection clash warning', () => {
+  const span = (id: string, time_start: string, time_end: string) => ({ ...ev(id, time_start), time_end })
+
+  it('marks both events whose times run over each other', () => {
+    render(
+      <DaySection day={day} members={[]} events={[span('a', '09:00', '12:00'), span('b', '11:00', '13:00')]} {...sheets} />
+    )
+    expect(screen.getAllByText('時間重疊')).toHaveLength(2)
+  })
+
+  it('says nothing about a day that merely runs back to back', () => {
+    render(
+      <DaySection day={day} members={[]} events={[span('a', '09:00', '12:00'), span('b', '12:00', '14:00')]} {...sheets} />
+    )
+    expect(screen.queryByText('時間重疊')).toBeNull()
+  })
+
+  it('marks a 分頭行動 card too, since it is one event like any other', () => {
+    const fork = {
+      ...span('f', '10:00', '14:00'),
+      type: 'fork' as const,
+      fork_items: [
+        { emails: [], others: false, title: '看海', location: '', notes: '' },
+        { emails: [], others: true, title: '逛街', location: '', notes: '' },
+      ],
+    }
+    render(
+      <DaySection day={day} members={[]} events={[fork, span('b', '13:00', '15:00')]} {...sheets} />
+    )
+    expect(screen.getAllByText('時間重疊')).toHaveLength(2)
+  })
+
+  it('leaves an event with no end time out of it', () => {
+    render(
+      <DaySection day={day} members={[]} events={[span('a', '09:00', ''), span('b', '09:30', '10:30')]} {...sheets} />
+    )
+    expect(screen.queryByText('時間重疊')).toBeNull()
+  })
+})
+
 describe('DaySection route link', () => {
   const at = (id: string, location: string) => ({ ...ev(id, ''), location })
 

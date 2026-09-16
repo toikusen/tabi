@@ -7,6 +7,8 @@ interface Props {
   event: TripEvent
   /** Resolves each group's emails to names */
   members: TripMember[]
+  /** This event's time runs over another in the same day. */
+  clashes?: boolean
   onClick: (event: TripEvent) => void
 }
 
@@ -18,7 +20,7 @@ const GROUP_STYLES = [
 ]
 const NAME_COLORS = ['text-primary', 'text-text-secondary', 'text-identity-2', 'text-identity-5']
 
-export function ForkCard({ event, members, onClick }: Props) {
+export function ForkCard({ event, members, clashes = false, onClick }: Props) {
   const items: ForkItem[] = event.fork_items ?? []
   const time =
     event.time_start && event.time_end
@@ -44,6 +46,8 @@ export function ForkCard({ event, members, onClick }: Props) {
           分頭行動
           {time && <span className="font-mono tabular-nums">{` · ${time}`}</span>}
         </p>
+        {/* Information, not a block: a half-planned day legitimately looks like this */}
+        {clashes && <span className="text-[11.5px] font-semibold text-danger">時間重疊</span>}
       </div>
       <div data-testid="fork-groups" className="flex flex-col gap-2 pl-8 pr-3 pb-3">
         {items.map((item, i) => (
