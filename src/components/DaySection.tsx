@@ -29,11 +29,13 @@ interface Props {
    *  mounts one of each rather than ten. */
   onCreate: (dayId: string) => void
   onOpen: (event: TripEvent, dayId: string) => void
+  /** Set only when the trip has another day to copy onto. */
+  onCopyDay?: (dayId: string) => void
 }
 
 /** One day of the timeline. A drop target for the trip's DndContext, which
  *  lives in TimelinePage so a card can cross between days. */
-export function DaySection({ day, members, events, now, onCreate, onOpen }: Props) {
+export function DaySection({ day, members, events, now, onCreate, onOpen, onCopyDay }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
   const { setNodeRef, isOver } = useDroppable({ id: day.id })
 
@@ -102,6 +104,18 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
             <Icon name="navigation" size={12} />
             路線
           </a>
+        )}
+        {/* Nothing to copy from an empty day, and nowhere to put it in a one-day trip */}
+        {onCopyDay && events.length > 0 && (
+          <button
+            onClick={() => onCopyDay(day.id)}
+            aria-label={`複製 ${fmtMD(day.date)} 的行程`}
+            className="w-11 h-11 -my-2 flex items-center justify-center shrink-0"
+          >
+            <span className="w-8 h-8 rounded-[10px] bg-bg text-text-label flex items-center justify-center">
+              <Icon name="copy" size={14} />
+            </span>
+          </button>
         )}
         <button
           onClick={() => onCreate(day.id)}

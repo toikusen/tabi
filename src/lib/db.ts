@@ -230,6 +230,41 @@ export async function moveEvent(
   return error ? { ok: false, error: error.message } : { ok: true }
 }
 
+/**
+ * Copies a day's events onto another day of the same trip, appended after what
+ * that day already holds.
+ *
+ * ponytail: one multi-row insert, so no RPC — a single statement is already
+ * one transaction, and a half-copied day is not a state anyone can land in.
+ *
+ * Same trip, so nothing needs remapping: the fork groups' emails still name
+ * members of this trip, and the image still lives in this trip's storage
+ * folder, which only goes when the whole trip does.
+ */
+export async function copyEventsToDay(
+  tripId: string,
+  events: TripEvent[],
+  toDayId: string,
+  startOrder: number
+): Promise<WriteResult> {
+  if (!events.length) return { ok: true }
+
+  const rows = events.map((event, i) => {
+    // Drop the source id so each copy gets its own from the default
+    const row: Record<string, unknown> = {
+      ...event,
+      trip_id: tripId,
+      day_id: toDayId,
+      sort_order: startOrder + i,
+    }
+    delete row.id
+    return row
+  })
+
+  const { error } = await supabase.from('events').insert(rows)
+  return error ? { ok: false, error: error.message } : { ok: true }
+}
+
 export async function reorderEvents(dayId: string, orderedIds: string[]): Promise<WriteResult> {
   const { data, error } = await supabase.rpc('reorder_events_rpc', {
     p_day_id: dayId,

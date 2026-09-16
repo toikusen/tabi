@@ -41,6 +41,7 @@ import {
   subscribeToTripData,
   addGuest,
   mergeGuest,
+  copyEventsToDay,
 } from '../../lib/db'
 
 beforeEach(() => {
@@ -104,6 +105,72 @@ describe('createTrip', () => {
 
     mockRpc.mockResolvedValue({ data: null, error: null })
     await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow()
+  })
+})
+
+describe('copyEventsToDay', () => {
+  const ev = (id: string, title: string, sort_order: number) => ({
+    id, type: 'shared' as const, title, time_start: '08:00', time_end: '09:00',
+    location: '那霸', notes: 'memo', sort_order,
+  })
+
+  it('inserts copies in one statement, appended after what the target day holds', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+
+    const result = await copyEventsToDay('t1', [ev('e1', '早餐', 0), ev('e2', '水族館', 1)], 'd2', 3)
+
+    expect(result).toEqual({ ok: true })
+    expect(mockFrom).toHaveBeenCalledWith('events')
+    // One call, one statement: a partial copy is not a state the day can land in
+    expect(insert).toHaveBeenCalledOnce()
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ trip_id: 't1', day_id: 'd2', title: '早餐', location: '那霸', notes: 'memo', sort_order: 3 })
+    expect(rows[1]).toMatchObject({ day_id: 'd2', title: '水族館', sort_order: 4 })
+  })
+
+  it('never carries the source ids over, so the copies get their own', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+
+    await copyEventsToDay('t1', [ev('e1', '早餐', 0)], 'd2', 0)
+
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    expect(rows[0].id).toBeUndefined()
+  })
+
+  it('carries the fork groups and links across unchanged', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+    const fork = {
+      ...ev('e1', '', 0),
+      type: 'fork' as const,
+      fork_items: [{ emails: ['a@test.com'], others: false, title: '看海', location: '', notes: '' }],
+      link_urls: ['https://example.com'],
+      image_url: 'https://img/t1/e1.jpg',
+    }
+
+    await copyEventsToDay('t1', [fork], 'd2', 0)
+
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    // Same trip, so the group emails still resolve and the image still belongs to this trip's folder
+    expect(rows[0]).toMatchObject({
+      type: 'fork',
+      fork_items: fork.fork_items,
+      link_urls: ['https://example.com'],
+      image_url: 'https://img/t1/e1.jpg',
+    })
+  })
+
+  it('does not go to the database for an empty day', async () => {
+    expect(await copyEventsToDay('t1', [], 'd2', 0)).toEqual({ ok: true })
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused insert instead of claiming the day was copied', async () => {
+    mockFrom.mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: { message: 'rls' } }) })
+    expect(await copyEventsToDay('t1', [ev('e1', '早餐', 0)], 'd2', 0)).toEqual({ ok: false, error: 'rls' })
   })
 })
 
