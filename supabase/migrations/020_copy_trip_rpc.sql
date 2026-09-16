@@ -143,3 +143,10 @@ $$;
 
 revoke execute on function public.copy_trip_rpc(uuid, text, date) from public, anon;
 grant  execute on function public.copy_trip_rpc(uuid, text, date) to authenticated;
+
+-- Harmless on its own — jsonb in, jsonb out, no table touched — but a function
+-- in the public schema defaults to EXECUTE for everyone, and anon has no
+-- business calling it. copy_trip_rpc is security invoker, so its own calls run
+-- as the caller and the grant below is what keeps them working.
+revoke execute on function public.remap_fork_emails(jsonb, jsonb) from public, anon;
+grant  execute on function public.remap_fork_emails(jsonb, jsonb) to authenticated;
