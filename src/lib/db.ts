@@ -128,6 +128,25 @@ export async function updateTrip(
   return error ? { ok: false, error: error.message } : { ok: true }
 }
 
+/**
+ * Copies a trip onto new dates and returns the new trip's id, or null when the
+ * copy is refused (migration 020). Days, events, the wishlist, the fork groups
+ * and the notes come across; members with accounts and images do not.
+ */
+export async function copyTrip(
+  tripId: string,
+  name: string,
+  startDate: string
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc('copy_trip_rpc', {
+    p_trip_id: tripId,
+    p_name: name,
+    p_start: startDate,
+  })
+  if (error || !data) return null
+  return data as string
+}
+
 export async function deleteTrip(tripId: string): Promise<boolean> {
   // ponytail: best-effort image cleanup; if it fails we accept orphaned
   // storage objects rather than blocking deletion (periodic cleanup later)

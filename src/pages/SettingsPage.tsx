@@ -3,9 +3,11 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { useAuth } from '../hooks/useAuth'
 import { useTrip } from '../hooks/useTrip'
-import { updateTrip, updateTripDates, deleteTrip, removeMember } from '../lib/db'
+import { updateTrip, updateTripDates, deleteTrip, removeMember, copyTrip } from '../lib/db'
 import { toast } from '../lib/toast'
 import { itineraryText, shareItinerary } from '../lib/share'
+import { dayCount } from '../lib/dates'
+import { TripCopySheet } from '../components/TripCopySheet'
 import { MembersSection } from '../components/MembersSection'
 import { TripNotesSection } from '../components/TripNotesSection'
 import { SavedBadge } from '../components/SavedBadge'
@@ -22,6 +24,8 @@ export function SettingsPage() {
   const [saved, setSaved] = useState<'name' | 'dates' | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<'leave' | 'delete' | null>(null)
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
@@ -67,6 +71,21 @@ export function SettingsPage() {
       else setDateError('日期更新失敗,請再試一次')
     } catch {
       setDateError('日期更新失敗,請再試一次')
+    }
+  }
+
+  const handleCopy = async (name: string, startDate: string) => {
+    if (!tripId || copying) return
+    setCopying(true)
+    try {
+      const newId = await copyTrip(tripId, name, startDate)
+      if (newId) navigate(`/trips/${newId}`, { replace: true })
+      else toast('複製失敗,請再試一次')
+    } catch {
+      toast('複製失敗,請再試一次')
+    } finally {
+      setCopying(false)
+      setCopyOpen(false)
     }
   }
 
@@ -162,6 +181,18 @@ export function SettingsPage() {
           <p className="text-[11px] text-text-label mt-2">產生純文字行程,給沒有安裝 App 的人看。</p>
         </section>
 
+        <section className="bg-white rounded-[12px] p-4 border border-border">
+          <p className="text-xs font-semibold text-text-label mb-3">複製旅程</p>
+          <button
+            onClick={() => setCopyOpen(true)}
+            disabled={!trip}
+            className="w-full border border-border text-text-strong rounded-[8px] py-2.5 text-sm font-semibold disabled:opacity-60"
+          >
+            複製成新的旅程
+          </button>
+          <p className="text-[11px] text-text-label mt-2">同樣的行程換一組日期,適合每年固定的旅行。</p>
+        </section>
+
         {trip && <MembersSection trip={trip} currentEmail={user?.email} />}
 
         <section className="bg-white rounded-[12px] p-4 border border-danger-border">
@@ -188,6 +219,16 @@ export function SettingsPage() {
           )}
         </section>
       </main>
+
+      {copyOpen && trip && (
+        <TripCopySheet
+          sourceName={trip.name}
+          dayCount={dayCount(trip.start_date, trip.end_date)}
+          busy={copying}
+          onCopy={handleCopy}
+          onClose={() => setCopyOpen(false)}
+        />
+      )}
 
       {confirm === 'delete' && trip && (
         <ConfirmSheet

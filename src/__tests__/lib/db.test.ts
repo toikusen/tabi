@@ -42,6 +42,7 @@ import {
   addGuest,
   mergeGuest,
   copyEventsToDay,
+  copyTrip,
 } from '../../lib/db'
 
 beforeEach(() => {
@@ -105,6 +106,29 @@ describe('createTrip', () => {
 
     mockRpc.mockResolvedValue({ data: null, error: null })
     await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow()
+  })
+})
+
+describe('copyTrip', () => {
+  it('hands the whole copy to one RPC and returns the new trip id', async () => {
+    mockRpc.mockResolvedValue({ data: 'copy-id', error: null })
+
+    expect(await copyTrip('t1', '2027 沖繩', '2027-05-01')).toBe('copy-id')
+    expect(mockRpc).toHaveBeenCalledWith('copy_trip_rpc', {
+      p_trip_id: 't1',
+      p_name: '2027 沖繩',
+      p_start: '2027-05-01',
+    })
+    // Nothing is built client-side, so a failure cannot leave half a trip
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the copy is refused, rather than a trip id that is not there', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'rls' } })
+    expect(await copyTrip('t1', 'x', '2027-05-01')).toBeNull()
+
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    expect(await copyTrip('t1', 'x', '2027-05-01')).toBeNull()
   })
 })
 
