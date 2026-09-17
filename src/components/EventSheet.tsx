@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import type { Day, TripEvent, ForkItem, TripMember } from '../types'
 import { createEvent, updateEvent, deleteEvent, moveEvent, reorderEvents, addGuest } from '../lib/db'
 import { CATEGORIES, CATEGORY_IMAGE, CATEGORY_LABEL, eventCategory, type Category } from '../lib/category'
-import { groupEmails } from '../lib/fork'
+import { groupEmails, groupLabel, groupStyle } from '../lib/fork'
 import { fmtMD } from '../lib/dates'
 import { uploadEventImage } from '../lib/storage'
 import { compressImage } from '../lib/image'
@@ -52,6 +52,8 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   const [guestGroup, setGuestGroup] = useState<number | null>(null)
   const [guestName, setGuestName] = useState('')
   const [addingGuest, setAddingGuest] = useState(false)
+  /** Companions added from this sheet, so their chip shows before the realtime refetch lands. */
+  const [newGuests, setNewGuests] = useState<TripMember[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setLinks(event?.link_urls?.length ? event.link_urls : [''])
     setTargetDayId(dayId)
     setGuestGroup(null)
+    setNewGuests([])
     // members stays out: its refetch after ＋ 旅伴 must not wipe the form mid-edit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event, open, dayId])
@@ -92,12 +95,20 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
 
   if (!open) return null
 
+  // Guests added here stand in until the realtime member refetch brings them back
+  const roster = [...members, ...newGuests.filter((g) => !members.some((m) => m.email === g.email))]
+
   const forkIncomplete = type === 'fork' && (
     forks.length < 2 || forks.some(f => (!f.emails.length && !f.others) || !f.title.trim())
   )
   const blockedReason = type === 'shared'
     ? (title.trim() ? null : '請輸入行程名稱')
     : (forkIncomplete ? '每一組都要選人和填活動' : null)
+
+  const closeGuestForm = () => {
+    setGuestGroup(null)
+    setGuestName('')
+  }
 
   const updateFork = (i: number, patch: Partial<ForkItem>) =>
     setForks(forks.map((f, j) => (j === i ? { ...f, ...patch } : f)))
@@ -116,8 +127,10 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     }
     setGuestGroup(null)
     setGuestName('')
+    setNewGuests((prev) => [...prev, { email: key, display_name: name, avatar_url: '' }])
     // Functional update: the forks captured before the await may be stale by now
     setForks((prev) => prev.map((f, j) => (j === i ? { ...f, emails: [...f.emails, key] } : f)))
+    toast(`已把${name}加入第 ${i + 1} 組`)
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -396,12 +409,34 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
         ) : (
           <>
             {timeFields}
-            <div className="flex flex-col gap-2 mb-2">
-              {forks.map((item, i) => (
-                <div key={i} className="bg-surface-subtle rounded-[8px] p-2 flex flex-col gap-1.5">
-                  <div className="flex items-start gap-1.5">
-                    <div role="group" aria-label={`第 ${i + 1} 組成員`} className="flex-1 flex flex-wrap gap-1.5">
-                      {members.map((m) => {
+            <div className="flex flex-col gap-3 mb-2">
+              {forks.map((item, i) => {
+                const style = groupStyle(i)
+                const picked = item.emails.length > 0 || item.others
+                return (
+                <div key={i} className={`border border-l-[3px] rounded-[8px] p-2.5 flex flex-col gap-2 ${style.card}`}>
+                  {/* The live name list is what tells the two groups apart at a glance */}
+                  <div className="flex items-center gap-1.5">
+                    <p className={`flex-1 text-[11px] font-bold ${style.name}`}>
+                      第 {i + 1} 組
+                      <span className={picked ? 'text-text-strong' : 'text-text-label'}>
+                        {picked ? ` · ${groupLabel(item, roster)}` : ' · 還沒選人'}
+                      </span>
+                    </p>
+                    {forks.length > 2 && (
+                      <button
+                        onClick={() => setForks(forks.filter((_, j) => j !== i))}
+                        aria-label={`移除第 ${i + 1} 組`}
+                        className="shrink-0 w-11 h-11 -my-2.5 -mr-2 flex items-center justify-center text-text-label"
+                      >
+                        <Icon name="close" size={14} />
+                      </button>
+                    )}
+                  </div>
+                  <div>
+                    <p className={labelCls}>誰去</p>
+                    <div role="group" aria-label={`第 ${i + 1} 組成員`} className="flex flex-wrap gap-1.5">
+                      {roster.map((m) => {
                         const on = item.emails.includes(m.email)
                         return (
                           <button
@@ -432,10 +467,16 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
                         其他人
                       </button>
                       {guestGroup === i ? (
+                        // For a 長輩 with no account: joins the trip by name without leaving this sheet
                         <form
                           onSubmit={(e) => { e.preventDefault(); handleAddGuest(i) }}
-                          className="w-full flex gap-1.5"
+                          // Escape backs out of the name field only; the sheet stays open
+                          onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); closeGuestForm() } }}
+                          className="w-full bg-white border border-primary rounded-[8px] p-2 flex flex-col gap-1.5"
                         >
+                          <p className="text-[11px] font-semibold text-text-label">
+                            沒有帳號的旅伴,打名字就能加進這一組
+                          </p>
                           <input
                             autoFocus
                             className={`${inputCls} !py-1.5`}
@@ -445,50 +486,55 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
                             value={guestName}
                             onChange={(e) => setGuestName(e.target.value)}
                           />
-                          <button
-                            type="submit"
-                            disabled={!guestName.trim() || addingGuest}
-                            className="shrink-0 text-xs font-semibold rounded-full px-3 py-1.5 bg-primary text-white disabled:opacity-40"
-                          >
-                            加入
-                          </button>
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
+                              onClick={closeGuestForm}
+                              className="flex-1 text-xs font-semibold rounded-full px-3 py-1.5 bg-bg text-text-secondary"
+                            >
+                              取消
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={!guestName.trim() || addingGuest}
+                              className="flex-1 text-xs font-semibold rounded-full px-3 py-1.5 bg-primary text-white disabled:opacity-40"
+                            >
+                              加入
+                            </button>
+                          </div>
                         </form>
                       ) : (
-                        // For a 長輩 with no account: joins the trip by name without leaving this sheet
                         <button
                           onClick={() => { setGuestGroup(i); setGuestName('') }}
-                          className="text-xs font-semibold rounded-full px-3 py-1.5 border border-dashed border-icon-muted text-primary"
+                          className="text-xs font-semibold rounded-full px-3 py-1.5 border border-dashed border-primary text-primary"
                         >
                           ＋ 旅伴
                         </button>
                       )}
                     </div>
-                    {forks.length > 2 && (
-                      <button
-                        onClick={() => setForks(forks.filter((_, j) => j !== i))}
-                        aria-label={`移除第 ${i + 1} 組`}
-                        className="shrink-0 w-11 h-11 -my-1 -mr-1 flex items-center justify-center text-text-label"
-                      >
-                        <Icon name="close" size={14} />
-                      </button>
-                    )}
                   </div>
-                  <input
-                    className={`${inputCls} !bg-white`}
-                    placeholder="活動"
-                    aria-label={`第 ${i + 1} 組活動`}
-                    value={item.title}
-                    onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, title: e.target.value } : f))}
-                  />
-                  <input
-                    className={`${inputCls} !bg-white`}
-                    placeholder="地點"
-                    aria-label={`第 ${i + 1} 組地點`}
-                    value={item.location}
-                    onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, location: e.target.value } : f))}
-                  />
+                  <div>
+                    <p className={labelCls}>這組去哪</p>
+                    <div className="flex flex-col gap-1.5">
+                      <input
+                        className={`${inputCls} !bg-white`}
+                        placeholder="活動"
+                        aria-label={`第 ${i + 1} 組活動`}
+                        value={item.title}
+                        onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, title: e.target.value } : f))}
+                      />
+                      <input
+                        className={`${inputCls} !bg-white`}
+                        placeholder="地點"
+                        aria-label={`第 ${i + 1} 組地點`}
+                        value={item.location}
+                        onChange={(e) => setForks(forks.map((f, j) => j === i ? { ...f, location: e.target.value } : f))}
+                      />
+                    </div>
+                  </div>
                 </div>
-              ))}
+                )
+              })}
               <button
                 onClick={() => setForks([...forks, emptyFork()])}
                 className="w-full border border-dashed border-icon-muted rounded-[8px] py-2 text-xs font-semibold text-primary mb-2"

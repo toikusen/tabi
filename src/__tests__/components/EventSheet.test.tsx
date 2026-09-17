@@ -106,6 +106,17 @@ describe('EventSheet', () => {
     expect(toggle(2, '其他人')).toHaveAttribute('aria-pressed', 'true')
   })
 
+  it('heads each group with who is in it, so the two groups read apart', () => {
+    render(
+      <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
+    )
+    expect(screen.getByText(/第 1 組/)).toHaveTextContent('第 1 組 · Alice')
+    expect(screen.getByText(/第 2 組/)).toHaveTextContent('第 2 組 · 其他人')
+    // An empty group says so rather than showing a stale or blank heading
+    fireEvent.click(toggle(1, 'Alice'))
+    expect(screen.getByText(/第 1 組/)).toHaveTextContent('第 1 組 · 還沒選人')
+  })
+
   it('keeps a member, and 其他人, to one group at a time', () => {
     render(
       <EventSheet open={true} event={forkEvent} dayId="d1" tripId="t1" events={[forkEvent]} members={members} onClose={() => {}} />
@@ -166,6 +177,35 @@ describe('EventSheet', () => {
         expect.objectContaining({ emails: [], others: true, title: '環球影城' }),
       ],
     })))
+  })
+
+  it('shows the new companion as a picked chip before the member list refetches', async () => {
+    render(
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
+    )
+    fireEvent.click(screen.getByText('分頭行動'))
+    fireEvent.click(toggle(1, '＋ 旅伴'))
+    fireEvent.change(screen.getByLabelText('第 1 組新增旅伴'), { target: { value: '爸爸' } })
+    fireEvent.click(toggle(1, '加入'))
+
+    // members never changes here, standing in for the realtime refetch not having landed
+    await waitFor(() => expect(toggle(1, '爸爸')).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.getByText(/第 1 組/)).toHaveTextContent('第 1 組 · 爸爸')
+  })
+
+  it('backs out of ＋ 旅伴 without adding anyone', () => {
+    vi.mocked(addGuest).mockClear()
+    render(
+      <EventSheet open={true} event={null} dayId="d1" tripId="t1" events={[]} members={members} onClose={() => {}} />
+    )
+    fireEvent.click(screen.getByText('分頭行動'))
+    fireEvent.click(toggle(1, '＋ 旅伴'))
+    fireEvent.change(screen.getByLabelText('第 1 組新增旅伴'), { target: { value: '爸爸' } })
+    fireEvent.click(toggle(1, '取消'))
+
+    expect(screen.queryByLabelText('第 1 組新增旅伴')).toBeNull()
+    expect(toggle(1, '＋ 旅伴')).toBeInTheDocument()
+    expect(addGuest).not.toHaveBeenCalled()
   })
 
   it('adds a companion once however fast 加入 is tapped', async () => {
