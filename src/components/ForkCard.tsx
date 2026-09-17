@@ -1,24 +1,18 @@
 import type { TripEvent, ForkItem, TripMember } from '../types'
 import { mapsUrl } from '../lib/dates'
-import { groupLabel } from '../lib/fork'
+import { groupLabel, groupStyle } from '../lib/fork'
 import { Icon } from './Icon'
 
 interface Props {
   event: TripEvent
   /** Resolves each group's emails to names */
   members: TripMember[]
+  /** This event's time runs over another in the same day. */
+  clashes?: boolean
   onClick: (event: TripEvent) => void
 }
 
-const GROUP_STYLES = [
-  'bg-fork-bg-1 border-fork-border-1 border-l-fork-border-1',
-  'bg-surface-subtle border-border border-l-border',
-  'bg-fork-bg-3 border-fork-border-3 border-l-fork-border-3',
-  'bg-fork-bg-4 border-fork-border-4 border-l-fork-border-4',
-]
-const NAME_COLORS = ['text-primary', 'text-text-secondary', 'text-identity-2', 'text-identity-5']
-
-export function ForkCard({ event, members, onClick }: Props) {
+export function ForkCard({ event, members, clashes = false, onClick }: Props) {
   const items: ForkItem[] = event.fork_items ?? []
   const time =
     event.time_start && event.time_end
@@ -44,14 +38,16 @@ export function ForkCard({ event, members, onClick }: Props) {
           分頭行動
           {time && <span className="font-mono tabular-nums">{` · ${time}`}</span>}
         </p>
+        {/* Information, not a block: a half-planned day legitimately looks like this */}
+        {clashes && <span className="text-[11.5px] font-semibold text-danger">時間重疊</span>}
       </div>
       <div data-testid="fork-groups" className="flex flex-col gap-2 pl-8 pr-3 pb-3">
         {items.map((item, i) => (
           <div
             key={i}
-            className={`border-l-[3px] border rounded-[8px] p-2 ${GROUP_STYLES[i % GROUP_STYLES.length]}`}
+            className={`border-l-[3px] border rounded-[8px] p-2 ${groupStyle(i).card}`}
           >
-            <span className={`inline-block text-[10px] font-bold mb-1 ${NAME_COLORS[i % NAME_COLORS.length]}`}>
+            <span className={`inline-block text-[10px] font-bold mb-1 ${groupStyle(i).name}`}>
               {groupLabel(item, members)}
             </span>
             <p className="text-[13px] font-semibold text-text-strong">{item.title}</p>

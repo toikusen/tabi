@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fmtMD, fmtChip, fmtRange, dayCount, daysUntil, tripStatus, todayStr, hhmm, sortTrips, mapsUrl, dayRouteUrl, nowLineIndex, scrollTargetEventId, groupByBand } from '../../lib/dates'
+import { fmtMD, fmtChip, fmtRange, dayCount, daysUntil, tripStatus, todayStr, hhmm, sortTrips, mapsUrl, dayRouteUrl, nowLineIndex, scrollTargetEventId, groupByBand, overlappingIds } from '../../lib/dates'
 
 describe('groupByBand', () => {
   it('splits a day at 11:00 and 17:00', () => {
@@ -189,5 +189,58 @@ describe('dayRouteUrl', () => {
     expect(url).toContain('origin=S0')
     expect(url).toContain('destination=S14')
     expect(url.split('waypoints=')[1].split('|')).toHaveLength(9)
+  })
+})
+
+describe('overlappingIds', () => {
+  const ev = (id: string, time_start: string, time_end: string) => ({ id, time_start, time_end })
+
+  it('names both sides of a clash', () => {
+    const ids = overlappingIds([ev('a', '09:00', '12:00'), ev('b', '11:00', '13:00')])
+    expect([...ids].sort()).toEqual(['a', 'b'])
+  })
+
+  it('leaves consecutive events alone', () => {
+    // 09:00–12:00 then 12:00–14:00 is a handover, not a clash
+    expect(overlappingIds([ev('a', '09:00', '12:00'), ev('b', '12:00', '14:00')]).size).toBe(0)
+  })
+
+  it('ignores an event with no end, which has no span to clash with', () => {
+    expect(overlappingIds([ev('a', '09:00', ''), ev('b', '09:30', '10:30')]).size).toBe(0)
+    expect(overlappingIds([ev('a', '', ''), ev('b', '09:30', '10:30')]).size).toBe(0)
+  })
+
+  it('ignores an end that is not after its start, midnight crossings included', () => {
+    // 23:00–01:00 cannot be read as a span from two HH:MM strings on one day,
+    // so it is left out rather than warned about wrongly
+    expect(overlappingIds([ev('a', '23:00', '01:00'), ev('b', '23:30', '23:45')]).size).toBe(0)
+  })
+
+  it('names every event in a three-way pile-up', () => {
+    const ids = overlappingIds([
+      ev('a', '09:00', '12:00'),
+      ev('b', '10:00', '11:00'),
+      ev('c', '11:30', '14:00'),
+    ])
+    expect([...ids].sort()).toEqual(['a', 'b', 'c'])
+  })
+
+  it('names only the two that clash, not the whole day', () => {
+    const ids = overlappingIds([
+      ev('early', '07:00', '08:00'),
+      ev('a', '09:00', '12:00'),
+      ev('b', '11:00', '13:00'),
+      ev('late', '18:00', '20:00'),
+    ])
+    expect([...ids].sort()).toEqual(['a', 'b'])
+  })
+
+  it('catches one event wholly inside another', () => {
+    const ids = overlappingIds([ev('outer', '09:00', '18:00'), ev('inner', '12:00', '13:00')])
+    expect([...ids].sort()).toEqual(['inner', 'outer'])
+  })
+
+  it('has nothing to say about an empty day', () => {
+    expect(overlappingIds([]).size).toBe(0)
   })
 })

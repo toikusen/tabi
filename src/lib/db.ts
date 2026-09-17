@@ -83,13 +83,25 @@ export async function mergeGuest(tripId: string, guest: string, member: string):
 
 export type TripSummary = Pick<Trip, 'id' | 'name' | 'start_date' | 'end_date' | 'owner_email'> & {
   members: TripMember[]
+  /** First event photo of the trip, for the list card; null when it has none. */
+  cover_image_url: string | null
 }
 
 export async function listMyTrips(): Promise<TripSummary[]> {
-  // RLS (trips_read) already restricts rows to trips the caller is a member of
+  // RLS (trips_read) already restricts rows to trips the caller is a member of.
+  // The embedded events are filtered and capped to one row per trip, so the
+  // cover costs a column rather than every event of every trip.
+  //
+  // sort_order restarts at 0 on every day, so two days with a photo tie; the id
+  // breaks it. Without that the cover is whichever row the planner happened to
+  // return, and the card changes picture between visits.
   const { data, error } = await supabase
     .from('trips')
-    .select('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url)')
+    .select('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url), events(image_url)')
+    .not('events.image_url', 'is', null)
+    .order('sort_order', { referencedTable: 'events' })
+    .order('id', { referencedTable: 'events' })
+    .limit(1, { referencedTable: 'events' })
   if (error) throw new Error(error.message)
   return (data ?? []).map((t: Record<string, unknown>) => ({
     id: t.id as string,
@@ -97,6 +109,7 @@ export async function listMyTrips(): Promise<TripSummary[]> {
     start_date: t.start_date as string,
     end_date: t.end_date as string,
     owner_email: (t.owner_email as string) ?? '',
+    cover_image_url: ((t.events ?? []) as { image_url: string | null }[])[0]?.image_url ?? null,
     members: ((t.trip_members ?? []) as { user_email: string; display_name: string; avatar_url: string }[]).map(m => ({
       email: m.user_email,
       display_name: m.display_name,
@@ -122,10 +135,84 @@ export type WriteResult = { ok: boolean; error?: string }
 
 export async function updateTrip(
   tripId: string,
-  data: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes'>>
+  data: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes' | 'destination' | 'lat' | 'lon'>>
 ): Promise<WriteResult> {
   const { error } = await supabase.from('trips').update(data).eq('id', tripId)
   return error ? { ok: false, error: error.message } : { ok: true }
+}
+
+/**
+ * Copies a trip onto new dates and returns the new trip's id, or null when the
+ * copy is refused (migration 020). Days, events, the wishlist, the fork groups
+ * and the notes come across; members with accounts and images do not.
+ */
+export async function copyTrip(
+  tripId: string,
+  name: string,
+  startDate: string
+): Promise<string | null> {
+  const { data, error } = await supabase.rpc('copy_trip_rpc', {
+    p_trip_id: tripId,
+    p_name: name,
+    p_start: startDate,
+  })
+  if (error || !data) return null
+  return data as string
+}
+
+// --- Read-only sharing (migration 021) ---
+
+/** One fork group as the public page gets it: a heading, never emails. */
+export interface PublicGroup {
+  label: string
+  title: string
+  location: string
+}
+
+export interface PublicEvent {
+  type: 'shared' | 'fork'
+  title: string
+  time_start: string
+  time_end: string
+  location: string
+  notes: string
+  groups: PublicGroup[]
+}
+
+/** The itinerary behind a share token. Deliberately the same range as
+ *  `itineraryText`: no wishlist, no images, no event links, no member list. */
+export interface PublicTrip {
+  name: string
+  start_date: string
+  end_date: string
+  notes: string
+  days: { date: string; label: string; events: PublicEvent[] }[]
+}
+
+/** Turns the read-only link on (minting a fresh token, which also revokes any
+ *  previous one) or off. Owner only, enforced in the RPC. */
+export async function setTripShare(
+  tripId: string,
+  enabled: boolean
+): Promise<{ ok: boolean; token?: string | null }> {
+  const { data, error } = await supabase.rpc('set_trip_share_rpc', {
+    p_trip_id: tripId,
+    p_enabled: enabled,
+  })
+  if (error || !data) return { ok: false }
+
+  const result = data as { ok?: boolean; token?: string | null }
+  return result.ok ? { ok: true, token: result.token ?? null } : { ok: false }
+}
+
+/** Reads a shared itinerary. Works signed out — that is the whole point.
+ *  null means the token is unknown, revoked, or the trip is gone. */
+export async function getPublicTrip(token: string): Promise<PublicTrip | null> {
+  if (!token) return null
+
+  const { data, error } = await supabase.rpc('public_trip_rpc', { p_token: token })
+  if (error || !data) return null
+  return data as PublicTrip
 }
 
 export async function deleteTrip(tripId: string): Promise<boolean> {
@@ -230,6 +317,41 @@ export async function moveEvent(
   return error ? { ok: false, error: error.message } : { ok: true }
 }
 
+/**
+ * Copies a day's events onto another day of the same trip, appended after what
+ * that day already holds.
+ *
+ * ponytail: one multi-row insert, so no RPC — a single statement is already
+ * one transaction, and a half-copied day is not a state anyone can land in.
+ *
+ * Same trip, so nothing needs remapping: the fork groups' emails still name
+ * members of this trip, and the image still lives in this trip's storage
+ * folder, which only goes when the whole trip does.
+ */
+export async function copyEventsToDay(
+  tripId: string,
+  events: TripEvent[],
+  toDayId: string,
+  startOrder: number
+): Promise<WriteResult> {
+  if (!events.length) return { ok: true }
+
+  const rows = events.map((event, i) => {
+    // Drop the source id so each copy gets its own from the default
+    const row: Record<string, unknown> = {
+      ...event,
+      trip_id: tripId,
+      day_id: toDayId,
+      sort_order: startOrder + i,
+    }
+    delete row.id
+    return row
+  })
+
+  const { error } = await supabase.from('events').insert(rows)
+  return error ? { ok: false, error: error.message } : { ok: true }
+}
+
 export async function reorderEvents(dayId: string, orderedIds: string[]): Promise<WriteResult> {
   const { data, error } = await supabase.rpc('reorder_events_rpc', {
     p_day_id: dayId,
@@ -272,6 +394,10 @@ export function subscribeToTripData(tripId: string, handlers: TripDataHandlers):
       start_date: data.start_date,
       end_date: data.end_date,
       notes: data.notes ?? '',
+      share_token: data.share_token ?? null,
+      destination: data.destination ?? '',
+      lat: data.lat ?? null,
+      lon: data.lon ?? null,
       members: (data.trip_members as { user_email: string; display_name: string; avatar_url: string }[]).map(m => ({
         email: m.user_email,
         display_name: m.display_name,

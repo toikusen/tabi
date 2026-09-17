@@ -1,3 +1,5 @@
+import type { Category } from './lib/category'
+
 export interface ForkItem {
   /** Members in this group, by email so a rename keeps them in it */
   emails: string[]
@@ -23,6 +25,8 @@ export interface TripEvent {
   image_url?: string | null
   /** http(s) only (migration 014) */
   link_urls?: string[]
+  /** Overrides the icon guessed from the title; null keeps the guess (migration 022) */
+  category?: Category | null
 }
 
 export interface Day {
@@ -47,4 +51,11 @@ export interface Trip {
   end_date: string
   /** Trip-level memo: flights, hotels, booking codes (migration 012) */
   notes: string
+  /** Read-only share link token; null when sharing is off (migration 021) */
+  share_token?: string | null
+  /** Where the trip goes, as the geocoder named it; '' when never set (migration 023) */
+  destination?: string
+  /** Coordinates of `destination`, null until one is picked (migration 023) */
+  lat?: number | null
+  lon?: number | null
 }

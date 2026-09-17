@@ -16,8 +16,8 @@ function readTripsCache(): TripSummary[] | null {
     const raw = localStorage.getItem(TRIPS_CACHE)
     if (!raw) return null
     const parsed = JSON.parse(raw) as TripSummary[]
-    // Older cache entries lack the members field
-    return parsed.map(t => ({ ...t, members: t.members ?? [] }))
+    // Older cache entries lack the members and cover fields
+    return parsed.map(t => ({ ...t, members: t.members ?? [], cover_image_url: t.cover_image_url ?? null }))
   } catch {
     return null
   }
@@ -43,12 +43,25 @@ function TripCountdown({ start, status }: { start: string; status: 'upcoming' | 
 function TripCard({ trip, onClick }: { trip: TripSummary; onClick: () => void }) {
   const status = tripStatus(trip.start_date, trip.end_date)
   const ended = status === 'ended'
+  const [coverError, setCoverError] = useState(false)
+  const cover = trip.cover_image_url && !coverError ? trip.cover_image_url : null
 
   return (
     <button
       onClick={onClick}
       className={`bg-white rounded-[12px] p-4 shadow-card text-left active:opacity-70 flex items-center gap-3 ${ended ? 'opacity-60' : ''}`}
     >
+      {cover && (
+        <img
+          src={cover}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+          decoding="async"
+          className="shrink-0 w-14 h-14 rounded-[10px] object-cover bg-surface-subtle"
+          onError={() => setCoverError(true)}
+        />
+      )}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-text-strong truncate">{trip.name}</p>
         <p className="text-xs text-text-label mt-1">

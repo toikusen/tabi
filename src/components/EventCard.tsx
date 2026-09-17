@@ -1,15 +1,17 @@
 import { useState } from 'react'
 import type { TripEvent } from '../types'
 import { mapsUrl } from '../lib/dates'
-import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
+import { CATEGORY_IMAGE, resolveCategory } from '../lib/category'
 import { Icon } from './Icon'
 
 interface Props {
   event: TripEvent
+  /** This event's time runs over another in the same day. */
+  clashes?: boolean
   onClick: (event: TripEvent) => void
 }
 
-export function EventCard({ event, onClick }: Props) {
+export function EventCard({ event, clashes = false, onClick }: Props) {
   const [imgError, setImgError] = useState(false)
   const showThumbnail = !!event.image_url && !imgError
   const time =
@@ -31,11 +33,11 @@ export function EventCard({ event, onClick }: Props) {
       className="w-full bg-white rounded-[12px] py-3 pl-8 pr-3 shadow-card text-left active:opacity-70 transition-opacity"
     >
       <div className="flex items-start gap-2.5">
-        {/* The row's visual anchor. Guessed from the title, so it is decorative
-            only — the title right next to it always carries the real meaning. */}
+        {/* The row's visual anchor. Picked, or guessed from the title, so it is
+            decorative only — the title next to it carries the real meaning. */}
         <span className="mt-0.5 shrink-0 w-8 h-8 rounded-[9px] bg-bg flex items-center justify-center">
           <img
-            src={CATEGORY_IMAGE[eventCategory(event.title)]}
+            src={CATEGORY_IMAGE[resolveCategory(event)]}
             alt=""
             aria-hidden="true"
             draggable={false}
@@ -46,7 +48,11 @@ export function EventCard({ event, onClick }: Props) {
         <div className="flex-1 min-w-0">
           <p className="text-[15px] font-semibold text-text-strong truncate">{event.title}</p>
           {time && (
-            <p className="text-[11px] font-mono tabular-nums text-text-label mt-0.5">{time}</p>
+            <p className="text-[11px] font-mono tabular-nums text-text-label mt-0.5 flex items-center gap-1.5">
+              {time}
+              {/* Information, not a block: a half-planned day legitimately looks like this */}
+              {clashes && <span className="font-sans font-semibold text-danger">時間重疊</span>}
+            </p>
           )}
           {event.location && (
             <p className="text-[11.5px] text-text-secondary mt-0.5 flex items-center gap-1.5">

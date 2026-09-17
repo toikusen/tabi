@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { useTrip } from '../hooks/useTrip'
 import { fmtMD, groupByBand, todayStr, tripStatus } from '../lib/dates'
-import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
+import { CATEGORY_IMAGE, resolveCategory } from '../lib/category'
 import { groupFor, groupLabel } from '../lib/fork'
 import { Icon } from '../components/Icon'
 import { TripNav } from '../components/TripNav'
@@ -183,7 +183,7 @@ export function OverviewPage() {
                           >
                             {/* mt-0.5 centres the 14px icon on the title's 18px line */}
                             <img
-                              src={CATEGORY_IMAGE[eventCategory(event.title)]}
+                              src={CATEGORY_IMAGE[resolveCategory(event)]}
                               alt=""
                               aria-hidden="true"
                               className="w-3.5 h-3.5 shrink-0 mt-0.5"

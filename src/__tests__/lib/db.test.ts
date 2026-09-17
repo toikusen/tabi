@@ -41,6 +41,10 @@ import {
   subscribeToTripData,
   addGuest,
   mergeGuest,
+  copyEventsToDay,
+  copyTrip,
+  getPublicTrip,
+  setTripShare,
 } from '../../lib/db'
 
 beforeEach(() => {
@@ -104,6 +108,144 @@ describe('createTrip', () => {
 
     mockRpc.mockResolvedValue({ data: null, error: null })
     await expect(createTrip('沖繩', 'Sei', '', '2025-06-11', '2025-06-12')).rejects.toThrow()
+  })
+})
+
+describe('setTripShare', () => {
+  it('mints a token when sharing is turned on', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: true, token: 'tok-1' }, error: null })
+
+    expect(await setTripShare('t1', true)).toEqual({ ok: true, token: 'tok-1' })
+    expect(mockRpc).toHaveBeenCalledWith('set_trip_share_rpc', { p_trip_id: 't1', p_enabled: true })
+  })
+
+  it('clears the token when sharing is turned off', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: true, token: null }, error: null })
+    expect(await setTripShare('t1', false)).toEqual({ ok: true, token: null })
+  })
+
+  it('reports a refusal rather than pretending the link changed', async () => {
+    mockRpc.mockResolvedValue({ data: { ok: false }, error: null })
+    expect(await setTripShare('t1', true)).toEqual({ ok: false })
+
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await setTripShare('t1', true)).toEqual({ ok: false })
+  })
+})
+
+describe('getPublicTrip', () => {
+  const payload = {
+    name: '沖繩', start_date: '2031-02-01', end_date: '2031-02-02', notes: 'BR116',
+    days: [{ date: '2031-02-01', label: '飛行日', events: [] }],
+  }
+
+  it('reads an itinerary by its share token', async () => {
+    mockRpc.mockResolvedValue({ data: payload, error: null })
+
+    expect(await getPublicTrip('tok-1')).toEqual(payload)
+    expect(mockRpc).toHaveBeenCalledWith('public_trip_rpc', { p_token: 'tok-1' })
+  })
+
+  it('returns null for a revoked or unknown token', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    expect(await getPublicTrip('gone')).toBeNull()
+
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'boom' } })
+    expect(await getPublicTrip('gone')).toBeNull()
+  })
+
+  it('never asks the server about an empty token', async () => {
+    expect(await getPublicTrip('')).toBeNull()
+    expect(mockRpc).not.toHaveBeenCalled()
+  })
+})
+
+describe('copyTrip', () => {
+  it('hands the whole copy to one RPC and returns the new trip id', async () => {
+    mockRpc.mockResolvedValue({ data: 'copy-id', error: null })
+
+    expect(await copyTrip('t1', '2027 沖繩', '2027-05-01')).toBe('copy-id')
+    expect(mockRpc).toHaveBeenCalledWith('copy_trip_rpc', {
+      p_trip_id: 't1',
+      p_name: '2027 沖繩',
+      p_start: '2027-05-01',
+    })
+    // Nothing is built client-side, so a failure cannot leave half a trip
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('returns null when the copy is refused, rather than a trip id that is not there', async () => {
+    mockRpc.mockResolvedValue({ data: null, error: { message: 'rls' } })
+    expect(await copyTrip('t1', 'x', '2027-05-01')).toBeNull()
+
+    mockRpc.mockResolvedValue({ data: null, error: null })
+    expect(await copyTrip('t1', 'x', '2027-05-01')).toBeNull()
+  })
+})
+
+describe('copyEventsToDay', () => {
+  const ev = (id: string, title: string, sort_order: number) => ({
+    id, type: 'shared' as const, title, time_start: '08:00', time_end: '09:00',
+    location: '那霸', notes: 'memo', sort_order,
+  })
+
+  it('inserts copies in one statement, appended after what the target day holds', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+
+    const result = await copyEventsToDay('t1', [ev('e1', '早餐', 0), ev('e2', '水族館', 1)], 'd2', 3)
+
+    expect(result).toEqual({ ok: true })
+    expect(mockFrom).toHaveBeenCalledWith('events')
+    // One call, one statement: a partial copy is not a state the day can land in
+    expect(insert).toHaveBeenCalledOnce()
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({ trip_id: 't1', day_id: 'd2', title: '早餐', location: '那霸', notes: 'memo', sort_order: 3 })
+    expect(rows[1]).toMatchObject({ day_id: 'd2', title: '水族館', sort_order: 4 })
+  })
+
+  it('never carries the source ids over, so the copies get their own', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+
+    await copyEventsToDay('t1', [ev('e1', '早餐', 0)], 'd2', 0)
+
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    expect(rows[0].id).toBeUndefined()
+  })
+
+  it('carries the fork groups and links across unchanged', async () => {
+    const insert = vi.fn().mockResolvedValue({ error: null })
+    mockFrom.mockReturnValue({ insert })
+    const fork = {
+      ...ev('e1', '', 0),
+      type: 'fork' as const,
+      fork_items: [{ emails: ['a@test.com'], others: false, title: '看海', location: '', notes: '' }],
+      link_urls: ['https://example.com'],
+      image_url: 'https://img/t1/e1.jpg',
+    }
+
+    await copyEventsToDay('t1', [fork], 'd2', 0)
+
+    const [rows] = insert.mock.calls[0] as [Record<string, unknown>[]]
+    // Same trip, so the group emails still resolve and the image still belongs to this trip's folder
+    expect(rows[0]).toMatchObject({
+      type: 'fork',
+      fork_items: fork.fork_items,
+      link_urls: ['https://example.com'],
+      image_url: 'https://img/t1/e1.jpg',
+    })
+  })
+
+  it('does not go to the database for an empty day', async () => {
+    expect(await copyEventsToDay('t1', [], 'd2', 0)).toEqual({ ok: true })
+    expect(mockFrom).not.toHaveBeenCalled()
+  })
+
+  it('reports a refused insert instead of claiming the day was copied', async () => {
+    mockFrom.mockReturnValue({ insert: vi.fn().mockResolvedValue({ error: { message: 'rls' } }) })
+    expect(await copyEventsToDay('t1', [ev('e1', '早餐', 0)], 'd2', 0)).toEqual({ ok: false, error: 'rls' })
   })
 })
 
@@ -210,19 +352,45 @@ describe('reorderEvents', () => {
 })
 
 describe('listMyTrips', () => {
-  it('selects trips without a server-side order (ordering is client-side)', async () => {
-    const mockSelect = vi.fn().mockResolvedValue({
-      data: [{ id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05', owner_email: 'sei@test.com' }],
-      error: null,
-    })
-    mockFrom.mockReturnValue({ select: mockSelect })
+  /** select().not().order().limit() — the chain resolves at the end, no server-side
+   *  order on the trips themselves: that grouping is client-side (sortTrips). */
+  const mockQuery = (rows: unknown[]) => {
+    const chain: Record<string, unknown> = {}
+    const resolved = Promise.resolve({ data: rows, error: null })
+    const select = vi.fn().mockReturnValue(chain)
+    chain.not = vi.fn().mockReturnValue(chain)
+    chain.order = vi.fn().mockReturnValue(chain)
+    chain.limit = vi.fn().mockReturnValue(resolved)
+    mockFrom.mockReturnValue({ select })
+    return { select, chain }
+  }
+
+  it('selects trips with one cover image each', async () => {
+    const { select, chain } = mockQuery([
+      {
+        id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05',
+        owner_email: 'sei@test.com', events: [{ image_url: 'https://img/1.jpg' }],
+      },
+    ])
 
     const trips = await listMyTrips()
 
     expect(mockFrom).toHaveBeenCalledWith('trips')
-    expect(mockSelect).toHaveBeenCalledWith('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url)')
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('events(image_url)'))
+    expect(chain.limit).toHaveBeenCalledWith(1, { referencedTable: 'events' })
+    // sort_order ties across days, so the id has to settle it or the cover changes
+    expect(chain.order).toHaveBeenCalledWith('id', { referencedTable: 'events' })
     expect(trips).toHaveLength(1)
     expect(trips[0].id).toBe('t1')
+    expect(trips[0].cover_image_url).toBe('https://img/1.jpg')
+  })
+
+  it('leaves the cover null for a trip whose events have no image', async () => {
+    mockQuery([
+      { id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05', owner_email: 'sei@test.com', events: [] },
+    ])
+
+    expect((await listMyTrips())[0].cover_image_url).toBeNull()
   })
 })
 

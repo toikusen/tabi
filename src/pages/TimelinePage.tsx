@@ -17,10 +17,14 @@ import { useTripDnd } from '../hooks/useTripDnd'
 import { cardsOverContainers, type EventsByDay } from '../lib/dnd'
 import { InstallPrompt } from '../components/InstallPrompt'
 import { InviteCard } from '../components/InviteCard'
+import { DayCopySheet } from '../components/DayCopySheet'
 import { EventSheet } from '../components/EventSheet'
 import { EventDetailSheet } from '../components/EventDetailSheet'
 import { useNow } from '../hooks/useNow'
-import type { TripEvent } from '../types'
+import { useWeather } from '../hooks/useWeather'
+import { copyEventsToDay } from '../lib/db'
+import { toast } from '../lib/toast'
+import type { Day, TripEvent } from '../types'
 
 /** An event and the list it was opened from; a null dayId is the wishlist. */
 interface Picked {
@@ -37,7 +41,10 @@ export function TimelinePage() {
    *  to mount eleven of each, and a minute timer per day besides. */
   const [detail, setDetail] = useState<Picked | null>(null)
   const [editing, setEditing] = useState<Picked | null>(null)
+  /** The day whose events are being copied onto another day. */
+  const [copyingDay, setCopyingDay] = useState<Day | null>(null)
   const now = useNow()
+  const weather = useWeather(trip)
 
   const scrolledRef = useRef(false)
 
@@ -170,8 +177,10 @@ export function TimelinePage() {
                 members={trip.members}
                 events={byDay[day.id] ?? []}
                 now={now}
+                weather={weather[day.date]}
                 onCreate={(dayId) => setEditing({ event: null, dayId })}
                 onOpen={(event, dayId) => setDetail({ event, dayId })}
+                onCopyDay={days.length > 1 ? () => setCopyingDay(day) : undefined}
               />
             ))}
           </div>
@@ -215,6 +224,26 @@ export function TimelinePage() {
         days={days}
         onClose={() => setEditing(null)}
       />
+
+      {copyingDay && (
+        <DayCopySheet
+          from={copyingDay}
+          days={days}
+          count={(byDay[copyingDay.id] ?? []).length}
+          onClose={() => setCopyingDay(null)}
+          onPick={async (toDayId) => {
+            const source = byDay[copyingDay.id] ?? []
+            setCopyingDay(null)
+            const result = await copyEventsToDay(
+              trip.id,
+              source,
+              toDayId,
+              (byDay[toDayId] ?? []).length
+            )
+            if (!result.ok) toast('複製失敗,請再試一次')
+          }}
+        />
+      )}
 
       <InstallPrompt />
     </div>

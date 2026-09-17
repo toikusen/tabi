@@ -8,6 +8,7 @@ import { TripListPage } from './pages/TripListPage'
 import { JoinPage } from './pages/JoinPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { OverviewPage } from './pages/OverviewPage'
+import { PublicTripPage } from './pages/PublicTripPage'
 import { Toast } from './components/Toast'
 
 const PENDING_JOIN_KEY = 'pendingJoinTripId'
@@ -40,6 +41,8 @@ export default function App() {
       <>
         <Routes>
           <Route path="/join/:tripId" element={<JoinPage />} />
+          {/* Before the catch-all: whoever opens this has no account, which is the point */}
+          <Route path="/s/:token" element={<PublicTripPage />} />
           <Route path="*" element={<LoginPage />} />
         </Routes>
         <Toast />
@@ -57,6 +60,7 @@ export default function App() {
         <Route path="/trips/:tripId/settings" element={<SettingsPage />} />
         <Route path="/trips/:tripId/overview" element={<OverviewPage />} />
         <Route path="/join/:tripId" element={<JoinPage />} />
+        <Route path="/s/:token" element={<PublicTripPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toast />

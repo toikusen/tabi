@@ -1,7 +1,13 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+
+const mockCopyEventsToDay = vi.fn(async () => ({ ok: true }))
+vi.mock('../../lib/db', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/db')>()),
+  copyEventsToDay: (...args: unknown[]) => mockCopyEventsToDay(...(args as [])),
+}))
 
 const mockUseTrip = vi.fn()
 vi.mock('../../hooks/useTrip', () => ({ useTrip: (id: string | null) => mockUseTrip(id) }))
@@ -10,11 +16,12 @@ vi.mock('../../hooks/useAuth', () => ({
   useAuth: () => ({ user: { email: 'sei@test.com', user_metadata: {} } }),
 }))
 vi.mock('../../components/DaySection', () => ({
-  DaySection: ({ day, events, onCreate, onOpen }: {
+  DaySection: ({ day, events, onCreate, onOpen, onCopyDay }: {
     day: { id: string }
     events: { id: string }[]
     onCreate: (dayId: string) => void
     onOpen: (event: { id: string }, dayId: string) => void
+    onCopyDay?: (dayId: string) => void
   }) => (
     <div data-testid="day-section">
       {events.map(e => (
@@ -23,6 +30,7 @@ vi.mock('../../components/DaySection', () => ({
         </div>
       ))}
       <button onClick={() => onCreate(day.id)}>{`add to ${day.id}`}</button>
+      {onCopyDay && <button onClick={() => onCopyDay(day.id)}>{`copy ${day.id}`}</button>}
     </div>
   ),
 }))
@@ -238,6 +246,47 @@ describe('TimelinePage', () => {
 
     await userEvent.click(screen.getByText('古宇利島'))
     expect(screen.getByTestId('event-sheet')).toHaveTextContent('wishlist/w1')
+  })
+
+  it('copies a day onto another, appended after what that day already holds', async () => {
+    mockCopyEventsToDay.mockClear()
+    const e = (id: string) => ({ id, type: 'shared', title: id, time_start: '', time_end: '', location: '', notes: '', sort_order: 0 })
+    mockUseTrip.mockReturnValue({
+      trip: { id: 't1', name: '沖繩', owner_email: 'sei@test.com', members: [], start_date: '2026-08-01', end_date: '2026-08-02' },
+      days: [
+        { id: 'd1', date: '2026-08-01', label: '', sort_order: 0 },
+        { id: 'd2', date: '2026-08-02', label: '', sort_order: 1 },
+      ],
+      eventsByDay: { d1: [e('a'), e('b')], d2: [e('x')] },
+      loading: false,
+    })
+
+    renderAt('/trips/t1')
+    await userEvent.click(screen.getByRole('button', { name: 'copy d1' }))
+    // Scoped to the sheet: the date chip row carries the same day labels
+    const sheet = within(screen.getByRole('dialog'))
+    // The source day is not offered as a target
+    expect(sheet.queryByRole('button', { name: /8\/1/ })).toBeNull()
+    await userEvent.click(sheet.getByRole('button', { name: /8\/2/ }))
+
+    expect(mockCopyEventsToDay).toHaveBeenCalledWith(
+      't1',
+      [expect.objectContaining({ id: 'a' }), expect.objectContaining({ id: 'b' })],
+      'd2',
+      1, // d2 already holds one, so the copies start after it
+    )
+  })
+
+  it('offers no copy button when the trip has only one day', () => {
+    mockUseTrip.mockReturnValue({
+      trip: { id: 't1', name: '沖繩', owner_email: 'sei@test.com', members: [], start_date: '2026-08-01', end_date: '2026-08-01' },
+      days: [{ id: 'd1', date: '2026-08-01', label: '', sort_order: 0 }],
+      eventsByDay: {},
+      loading: false,
+    })
+
+    renderAt('/trips/t1')
+    expect(screen.queryByRole('button', { name: /^copy / })).toBeNull()
   })
 
   it('puts each day title on its date chip, falling back to the weekday', () => {

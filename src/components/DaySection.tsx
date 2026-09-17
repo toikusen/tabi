@@ -3,9 +3,10 @@ import { useDroppable } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { updateDayLabel } from '../lib/db'
 import { toast } from '../lib/toast'
-import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl } from '../lib/dates'
+import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl, overlappingIds } from '../lib/dates'
 import { Icon } from './Icon'
 import { SortableCard } from './SortableCard'
+import { weatherEmoji, type DayWeather } from '../lib/weather'
 import type { Day, TripEvent, TripMember } from '../types'
 
 function NowLine({ time }: { time: string }) {
@@ -25,15 +26,19 @@ interface Props {
   /** Ticks once a minute, owned by the page: one timer for the whole trip
    *  instead of one per day. */
   now: Date
+  /** Set only for days inside the forecast window of a trip with a destination. */
+  weather?: DayWeather
   /** Opens the page's sheets. They live there, not here, so a ten-day trip
    *  mounts one of each rather than ten. */
   onCreate: (dayId: string) => void
   onOpen: (event: TripEvent, dayId: string) => void
+  /** Set only when the trip has another day to copy onto. */
+  onCopyDay?: (dayId: string) => void
 }
 
 /** One day of the timeline. A drop target for the trip's DndContext, which
  *  lives in TimelinePage so a card can cross between days. */
-export function DaySection({ day, members, events, now, onCreate, onOpen }: Props) {
+export function DaySection({ day, members, events, now, weather, onCreate, onOpen, onCopyDay }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
   const { setNodeRef, isOver } = useDroppable({ id: day.id })
 
@@ -41,6 +46,7 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
   const nowTime = hhmm(now)
   const nowIndex = isToday ? nowLineIndex(events, nowTime) : -1
   const routeUrl = dayRouteUrl(events.map((e) => e.location))
+  const clashing = overlappingIds(events)
 
   /** The title input is uncontrolled and mounts fresh on every edit, so it
    *  always starts from the live label — a tripmate's rename that arrived
@@ -58,6 +64,14 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
       {/* Day header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[13px] font-extrabold text-text-strong whitespace-nowrap">{fmtMD(day.date)}</span>
+        {weather && (
+          <span
+            className="shrink-0 text-[11px] text-text-label whitespace-nowrap tabular-nums"
+            aria-label={`天氣 最高 ${weather.max} 度 最低 ${weather.min} 度`}
+          >
+            {weatherEmoji(weather.code)} {weather.max}°/{weather.min}°
+          </span>
+        )}
         {editingLabel ? (
           <input
             autoFocus
@@ -102,6 +116,18 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
             路線
           </a>
         )}
+        {/* Nothing to copy from an empty day, and nowhere to put it in a one-day trip */}
+        {onCopyDay && events.length > 0 && (
+          <button
+            onClick={() => onCopyDay(day.id)}
+            aria-label={`複製 ${fmtMD(day.date)} 的行程`}
+            className="w-11 h-11 -my-2 flex items-center justify-center shrink-0"
+          >
+            <span className="w-8 h-8 rounded-[10px] bg-bg text-text-label flex items-center justify-center">
+              <Icon name="copy" size={14} />
+            </span>
+          </button>
+        )}
         <button
           onClick={() => onCreate(day.id)}
           aria-label="新增行程"
@@ -118,7 +144,12 @@ export function DaySection({ day, members, events, now, onCreate, onOpen }: Prop
           {events.map((event, i) => (
             <span key={event.id} className="contents">
               {i === nowIndex && <NowLine time={nowTime} />}
-              <SortableCard event={event} members={members} onOpen={(e) => onOpen(e, day.id)} />
+              <SortableCard
+                event={event}
+                members={members}
+                clashes={clashing.has(event.id)}
+                onOpen={(e) => onOpen(e, day.id)}
+              />
             </span>
           ))}
           {nowIndex === events.length && events.length > 0 && <NowLine time={nowTime} />}

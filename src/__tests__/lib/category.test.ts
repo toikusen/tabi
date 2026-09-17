@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { eventCategory } from '../../lib/category'
+import { eventCategory, resolveCategory } from '../../lib/category'
 
 describe('eventCategory', () => {
   it('matches the five categories from real itinerary titles', () => {
@@ -30,5 +30,20 @@ describe('eventCategory', () => {
 
   it('prefers the checked-in stop when a title mentions both', () => {
     expect(eventCategory('飯店早餐')).toBe('lodging')
+  })
+})
+
+describe('resolveCategory', () => {
+  it('prefers a picked category over the title guess', () => {
+    expect(resolveCategory({ title: '一蘭拉麵 本店', category: 'sight' })).toBe('sight')
+  })
+
+  it('falls back to the guess when nothing was picked', () => {
+    expect(resolveCategory({ title: '一蘭拉麵 本店' })).toBe('food')
+    expect(resolveCategory({ title: '一蘭拉麵 本店', category: null })).toBe('food')
+  })
+
+  it('falls back to the guess for a category this build does not know', () => {
+    expect(resolveCategory({ title: '美麗海水族館', category: 'onsen' as never })).toBe('sight')
   })
 })

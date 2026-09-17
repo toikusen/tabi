@@ -21,6 +21,19 @@ export function groupLabel(item: ForkItem, members: TripMember[]): string {
   return label || item.person || '未指定'
 }
 
+/**
+ * Per-group colours, so a group wears the same tint while it is edited and once it
+ * is a card on the timeline.
+ */
+const GROUP_STYLES = [
+  { card: 'bg-fork-bg-1 border-fork-border-1 border-l-fork-border-1', name: 'text-primary' },
+  { card: 'bg-surface-subtle border-border border-l-border', name: 'text-text-secondary' },
+  { card: 'bg-fork-bg-3 border-fork-border-3 border-l-fork-border-3', name: 'text-identity-2' },
+  { card: 'bg-fork-bg-4 border-fork-border-4 border-l-fork-border-4', name: 'text-identity-5' },
+]
+
+export const groupStyle = (i: number) => GROUP_STYLES[i % GROUP_STYLES.length]
+
 /** The group a member follows in a fork event: the one naming them, else the 其他人 one. */
 export function groupFor(event: TripEvent, email: string, members: TripMember[]): ForkItem | undefined {
   const items = event.fork_items ?? []

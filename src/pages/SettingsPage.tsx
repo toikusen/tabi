@@ -3,9 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { useAuth } from '../hooks/useAuth'
 import { useTrip } from '../hooks/useTrip'
-import { updateTrip, updateTripDates, deleteTrip, removeMember } from '../lib/db'
+import { updateTrip, updateTripDates, deleteTrip, removeMember, copyTrip } from '../lib/db'
 import { toast } from '../lib/toast'
 import { itineraryText, shareItinerary } from '../lib/share'
+import { dayCount } from '../lib/dates'
+import { DestinationPicker } from '../components/DestinationPicker'
+import type { Place } from '../lib/weather'
+import { TripCopySheet } from '../components/TripCopySheet'
+import { ShareLinkSection } from '../components/ShareLinkSection'
 import { MembersSection } from '../components/MembersSection'
 import { TripNotesSection } from '../components/TripNotesSection'
 import { SavedBadge } from '../components/SavedBadge'
@@ -19,9 +24,11 @@ export function SettingsPage() {
   const [nameInput, setNameInput] = useState('')
   const [dates, setDates] = useState({ start: '', end: '' })
   const [dateError, setDateError] = useState<string | null>(null)
-  const [saved, setSaved] = useState<'name' | 'dates' | null>(null)
+  const [saved, setSaved] = useState<'name' | 'dates' | 'place' | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<'leave' | 'delete' | null>(null)
+  const [copyOpen, setCopyOpen] = useState(false)
+  const [copying, setCopying] = useState(false)
   const savedTimer = useRef<ReturnType<typeof setTimeout>>()
 
   useEffect(() => {
@@ -36,7 +43,7 @@ export function SettingsPage() {
 
   const isOwner = trip?.owner_email === user?.email
 
-  const flashSaved = (what: 'name' | 'dates') => {
+  const flashSaved = (what: 'name' | 'dates' | 'place') => {
     setSaved(what)
     clearTimeout(savedTimer.current)
     savedTimer.current = setTimeout(() => setSaved(null), 2000)
@@ -47,6 +54,18 @@ export function SettingsPage() {
     const result = await updateTrip(tripId, { name: nameInput.trim() })
     if (result.ok) flashSaved('name')
     else toast('名稱儲存失敗,請再試一次')
+  }
+
+  /** Coordinates travel with the name: a destination without them buys no forecast. */
+  const handlePickPlace = async (place: Place | null) => {
+    if (!tripId) return
+    const result = await updateTrip(tripId, {
+      destination: place?.name ?? '',
+      lat: place?.lat ?? null,
+      lon: place?.lon ?? null,
+    })
+    if (result.ok) flashSaved('place')
+    else toast('目的地儲存失敗,請再試一次')
   }
 
   const handleShare = async () => {
@@ -67,6 +86,25 @@ export function SettingsPage() {
       else setDateError('日期更新失敗,請再試一次')
     } catch {
       setDateError('日期更新失敗,請再試一次')
+    }
+  }
+
+  const handleCopy = async (name: string, startDate: string) => {
+    if (!tripId || copying) return
+    setCopying(true)
+    try {
+      const newId = await copyTrip(tripId, name, startDate)
+      // The sheet stays open on failure so the name and date just typed survive
+      if (!newId) {
+        toast('複製失敗,請再試一次')
+        return
+      }
+      setCopyOpen(false)
+      navigate(`/trips/${newId}`, { replace: true })
+    } catch {
+      toast('複製失敗,請再試一次')
+    } finally {
+      setCopying(false)
     }
   }
 
@@ -147,6 +185,13 @@ export function SettingsPage() {
             />
           </div>
           {dateError && <p className="text-xs text-danger mt-2">{dateError}</p>}
+
+          <div className="flex items-center justify-between mt-4 mb-2">
+            <p className="text-xs font-semibold text-text-label">目的地</p>
+            {saved === 'place' && <SavedBadge />}
+          </div>
+          <DestinationPicker value={trip?.destination ?? ''} onPick={handlePickPlace} />
+          <p className="text-[11px] text-text-label mt-1.5">設定後,16 天內的每一天會在時間軸顯示天氣。</p>
         </section>
 
         {trip && <TripNotesSection trip={trip} />}
@@ -160,6 +205,20 @@ export function SettingsPage() {
             複製 / 分享文字行程
           </button>
           <p className="text-[11px] text-text-label mt-2">產生純文字行程,給沒有安裝 App 的人看。</p>
+        </section>
+
+        {trip && <ShareLinkSection trip={trip} isOwner={isOwner} />}
+
+        <section className="bg-white rounded-[12px] p-4 border border-border">
+          <p className="text-xs font-semibold text-text-label mb-3">複製旅程</p>
+          <button
+            onClick={() => setCopyOpen(true)}
+            disabled={!trip}
+            className="w-full border border-border text-text-strong rounded-[8px] py-2.5 text-sm font-semibold disabled:opacity-60"
+          >
+            複製成新的旅程
+          </button>
+          <p className="text-[11px] text-text-label mt-2">同樣的行程換一組日期,適合每年固定的旅行。</p>
         </section>
 
         {trip && <MembersSection trip={trip} currentEmail={user?.email} />}
@@ -188,6 +247,16 @@ export function SettingsPage() {
           )}
         </section>
       </main>
+
+      {copyOpen && trip && (
+        <TripCopySheet
+          sourceName={trip.name}
+          dayCount={dayCount(trip.start_date, trip.end_date)}
+          busy={copying}
+          onCopy={handleCopy}
+          onClose={() => setCopyOpen(false)}
+        />
+      )}
 
       {confirm === 'delete' && trip && (
         <ConfirmSheet

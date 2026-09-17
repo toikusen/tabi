@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Icon } from '../components/Icon'
 import { useAuth } from '../hooks/useAuth'
-import { createTrip } from '../lib/db'
+import { createTrip, updateTrip } from '../lib/db'
 import { todayStr } from '../lib/dates'
 import { Logo } from '../components/Logo'
+import { DestinationPicker } from '../components/DestinationPicker'
+import type { Place } from '../lib/weather'
 
 const plusDays = (n: number) => {
   const d = new Date()
@@ -18,6 +20,7 @@ export function NewTripPage() {
   const [tripName, setTripName] = useState('')
   const [startDate, setStartDate] = useState(() => todayStr())
   const [endDate, setEndDate] = useState(() => plusDays(2))
+  const [place, setPlace] = useState<Place | null>(null)
   const [creating, setCreating] = useState(false)
   const [createError, setCreateError] = useState(false)
 
@@ -37,6 +40,11 @@ export function NewTripPage() {
       const displayName = (user.user_metadata?.full_name as string) ?? user.email ?? ''
       const avatarUrl = (user.user_metadata?.avatar_url as string) ?? ''
       const id = await createTrip(tripName.trim(), displayName, avatarUrl, startDate, endDate)
+      // Separate write: create_trip_rpc (018) knows nothing about a destination,
+      // and losing the forecast is not a reason to fail creating the trip.
+      if (place) {
+        await updateTrip(id, { destination: place.name, lat: place.lat, lon: place.lon })
+      }
       navigate(`/trips/${id}`, { replace: true })
     } catch {
       setCreateError(true)
@@ -81,6 +89,13 @@ export function NewTripPage() {
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
             />
+          </div>
+          <div>
+            <DestinationPicker
+              value={place?.name ?? ''}
+              onPick={setPlace}
+            />
+            <p className="text-[11px] text-text-label mt-1.5">目的地（選填）,填了就會顯示天氣。</p>
           </div>
           <button
             onClick={handleCreateTrip}
