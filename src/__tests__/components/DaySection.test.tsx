@@ -39,6 +39,18 @@ describe('DaySection now line', () => {
     expect(screen.queryByTestId('now-line')).not.toBeInTheDocument()
   })
 
+  it('shows the forecast beside the date when there is one', () => {
+    render(
+      <DaySection day={day} members={[]} events={[]} {...sheets} weather={{ code: 61, max: 29, min: 24 }} />
+    )
+    expect(screen.getByLabelText('天氣 最高 29 度 最低 24 度')).toHaveTextContent('29°/24°')
+  })
+
+  it('shows no forecast for a day outside the window', () => {
+    render(<DaySection day={day} members={[]} events={[]} {...sheets} />)
+    expect(screen.queryByLabelText(/天氣/)).not.toBeInTheDocument()
+  })
+
   it('shows a visible drag handle', () => {
     render(<DaySection day={day} members={[]} events={[ev('a', '09:00')]} {...sheets} />)
     expect(screen.getByRole('button', { name: '拖曳排序' })).toBeVisible()

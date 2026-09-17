@@ -21,6 +21,7 @@ import { DayCopySheet } from '../components/DayCopySheet'
 import { EventSheet } from '../components/EventSheet'
 import { EventDetailSheet } from '../components/EventDetailSheet'
 import { useNow } from '../hooks/useNow'
+import { useWeather } from '../hooks/useWeather'
 import { copyEventsToDay } from '../lib/db'
 import { toast } from '../lib/toast'
 import type { Day, TripEvent } from '../types'
@@ -43,6 +44,7 @@ export function TimelinePage() {
   /** The day whose events are being copied onto another day. */
   const [copyingDay, setCopyingDay] = useState<Day | null>(null)
   const now = useNow()
+  const weather = useWeather(trip)
 
   const scrolledRef = useRef(false)
 
@@ -175,6 +177,7 @@ export function TimelinePage() {
                 members={trip.members}
                 events={byDay[day.id] ?? []}
                 now={now}
+                weather={weather[day.date]}
                 onCreate={(dayId) => setEditing({ event: null, dayId })}
                 onOpen={(event, dayId) => setDetail({ event, dayId })}
                 onCopyDay={days.length > 1 ? () => setCopyingDay(day) : undefined}

@@ -7,6 +7,8 @@ import { updateTrip, updateTripDates, deleteTrip, removeMember, copyTrip } from 
 import { toast } from '../lib/toast'
 import { itineraryText, shareItinerary } from '../lib/share'
 import { dayCount } from '../lib/dates'
+import { DestinationPicker } from '../components/DestinationPicker'
+import type { Place } from '../lib/weather'
 import { TripCopySheet } from '../components/TripCopySheet'
 import { ShareLinkSection } from '../components/ShareLinkSection'
 import { MembersSection } from '../components/MembersSection'
@@ -22,7 +24,7 @@ export function SettingsPage() {
   const [nameInput, setNameInput] = useState('')
   const [dates, setDates] = useState({ start: '', end: '' })
   const [dateError, setDateError] = useState<string | null>(null)
-  const [saved, setSaved] = useState<'name' | 'dates' | null>(null)
+  const [saved, setSaved] = useState<'name' | 'dates' | 'place' | null>(null)
   const [busy, setBusy] = useState(false)
   const [confirm, setConfirm] = useState<'leave' | 'delete' | null>(null)
   const [copyOpen, setCopyOpen] = useState(false)
@@ -41,7 +43,7 @@ export function SettingsPage() {
 
   const isOwner = trip?.owner_email === user?.email
 
-  const flashSaved = (what: 'name' | 'dates') => {
+  const flashSaved = (what: 'name' | 'dates' | 'place') => {
     setSaved(what)
     clearTimeout(savedTimer.current)
     savedTimer.current = setTimeout(() => setSaved(null), 2000)
@@ -52,6 +54,18 @@ export function SettingsPage() {
     const result = await updateTrip(tripId, { name: nameInput.trim() })
     if (result.ok) flashSaved('name')
     else toast('名稱儲存失敗,請再試一次')
+  }
+
+  /** Coordinates travel with the name: a destination without them buys no forecast. */
+  const handlePickPlace = async (place: Place | null) => {
+    if (!tripId) return
+    const result = await updateTrip(tripId, {
+      destination: place?.name ?? '',
+      lat: place?.lat ?? null,
+      lon: place?.lon ?? null,
+    })
+    if (result.ok) flashSaved('place')
+    else toast('目的地儲存失敗,請再試一次')
   }
 
   const handleShare = async () => {
@@ -171,6 +185,13 @@ export function SettingsPage() {
             />
           </div>
           {dateError && <p className="text-xs text-danger mt-2">{dateError}</p>}
+
+          <div className="flex items-center justify-between mt-4 mb-2">
+            <p className="text-xs font-semibold text-text-label">目的地</p>
+            {saved === 'place' && <SavedBadge />}
+          </div>
+          <DestinationPicker value={trip?.destination ?? ''} onPick={handlePickPlace} />
+          <p className="text-[11px] text-text-label mt-1.5">設定後,16 天內的每一天會在時間軸顯示天氣。</p>
         </section>
 
         {trip && <TripNotesSection trip={trip} />}

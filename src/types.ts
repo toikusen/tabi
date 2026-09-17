@@ -53,4 +53,9 @@ export interface Trip {
   notes: string
   /** Read-only share link token; null when sharing is off (migration 021) */
   share_token?: string | null
+  /** Where the trip goes, as the geocoder named it; '' when never set (migration 023) */
+  destination?: string
+  /** Coordinates of `destination`, null until one is picked (migration 023) */
+  lat?: number | null
+  lon?: number | null
 }

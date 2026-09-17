@@ -135,7 +135,7 @@ export type WriteResult = { ok: boolean; error?: string }
 
 export async function updateTrip(
   tripId: string,
-  data: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes'>>
+  data: Partial<Pick<Trip, 'name' | 'start_date' | 'end_date' | 'notes' | 'destination' | 'lat' | 'lon'>>
 ): Promise<WriteResult> {
   const { error } = await supabase.from('trips').update(data).eq('id', tripId)
   return error ? { ok: false, error: error.message } : { ok: true }
@@ -395,6 +395,9 @@ export function subscribeToTripData(tripId: string, handlers: TripDataHandlers):
       end_date: data.end_date,
       notes: data.notes ?? '',
       share_token: data.share_token ?? null,
+      destination: data.destination ?? '',
+      lat: data.lat ?? null,
+      lon: data.lon ?? null,
       members: (data.trip_members as { user_email: string; display_name: string; avatar_url: string }[]).map(m => ({
         email: m.user_email,
         display_name: m.display_name,

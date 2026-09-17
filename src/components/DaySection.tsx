@@ -6,6 +6,7 @@ import { toast } from '../lib/toast'
 import { fmtMD, todayStr, hhmm, nowLineIndex, dayRouteUrl, overlappingIds } from '../lib/dates'
 import { Icon } from './Icon'
 import { SortableCard } from './SortableCard'
+import { weatherEmoji, type DayWeather } from '../lib/weather'
 import type { Day, TripEvent, TripMember } from '../types'
 
 function NowLine({ time }: { time: string }) {
@@ -25,6 +26,8 @@ interface Props {
   /** Ticks once a minute, owned by the page: one timer for the whole trip
    *  instead of one per day. */
   now: Date
+  /** Set only for days inside the forecast window of a trip with a destination. */
+  weather?: DayWeather
   /** Opens the page's sheets. They live there, not here, so a ten-day trip
    *  mounts one of each rather than ten. */
   onCreate: (dayId: string) => void
@@ -35,7 +38,7 @@ interface Props {
 
 /** One day of the timeline. A drop target for the trip's DndContext, which
  *  lives in TimelinePage so a card can cross between days. */
-export function DaySection({ day, members, events, now, onCreate, onOpen, onCopyDay }: Props) {
+export function DaySection({ day, members, events, now, weather, onCreate, onOpen, onCopyDay }: Props) {
   const [editingLabel, setEditingLabel] = useState(false)
   const { setNodeRef, isOver } = useDroppable({ id: day.id })
 
@@ -61,6 +64,14 @@ export function DaySection({ day, members, events, now, onCreate, onOpen, onCopy
       {/* Day header */}
       <div className="flex items-center gap-2 mb-3">
         <span className="text-[13px] font-extrabold text-text-strong whitespace-nowrap">{fmtMD(day.date)}</span>
+        {weather && (
+          <span
+            className="shrink-0 text-[11px] text-text-label whitespace-nowrap tabular-nums"
+            aria-label={`天氣 最高 ${weather.max} 度 最低 ${weather.min} 度`}
+          >
+            {weatherEmoji(weather.code)} {weather.max}°/{weather.min}°
+          </span>
+        )}
         {editingLabel ? (
           <input
             autoFocus
