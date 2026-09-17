@@ -341,6 +341,26 @@ describe('EventSheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('offers an undo that puts the deleted event back where it was', async () => {
+    render(
+      <EventSheet open={true} event={sharedEvent} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={() => {}} />
+    )
+    fireEvent.click(screen.getByRole('button', { name: '刪除' }))
+    const confirmButtons = screen.getAllByRole('button', { name: '刪除' })
+    fireEvent.click(confirmButtons[confirmButtons.length - 1])
+
+    await waitFor(() => expect(deleteEvent).toHaveBeenCalledWith('e1'))
+    const [message, action] = vi.mocked(toast).mock.calls.at(-1)!
+    expect(message).toContain('美麗海水族館')
+
+    action!.onAction()
+
+    // Same id and same day: nothing else has to be remapped to have it back
+    await waitFor(() =>
+      expect(createEvent).toHaveBeenCalledWith('t1', 'd1', expect.objectContaining({ id: 'e1', title: '美麗海水族館' }))
+    )
+  })
+
   it('saves the picked category instead of the one guessed from the title', async () => {
     const onClose = vi.fn()
     render(

@@ -198,17 +198,32 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     }
   }
 
+  /** Puts a deleted event back where it was, id and all — the row is gone, so
+   *  its id is free, and keeping it means nothing else has to be remapped. */
+  const restore = async (deleted: TripEvent) => {
+    try {
+      await createEvent(tripId, dayId, deleted)
+    } catch {
+      toast('復原失敗,請再試一次')
+    }
+  }
+
   const handleDelete = async () => {
     if (!isEdit) return
+    const deleted = event
     setConfirmDelete(false)
     setSaving(true)
     try {
-      const result = await deleteEvent(event.id)
+      const result = await deleteEvent(deleted.id)
       if (!result.ok) {
         toast('刪除失敗,請再試一次')
         return
       }
       onClose()
+      toast(deleted.title ? `已刪除「${deleted.title}」` : '已刪除分頭行動', {
+        label: '復原',
+        onAction: () => restore(deleted),
+      })
     } catch {
       toast('刪除失敗,請再試一次')
     } finally {

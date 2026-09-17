@@ -24,4 +24,26 @@ describe('Toast', () => {
     act(() => { vi.advanceTimersByTime(3000) })
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
+
+  it('runs the action and dismisses when it is taken', () => {
+    const onAction = vi.fn()
+    render(<Toast />)
+    act(() => toast('已刪除「美麗海水族館」', { label: '復原', onAction }))
+
+    act(() => { screen.getByRole('button', { name: '復原' }).click() })
+
+    expect(onAction).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('gives a message with an action longer than three seconds to be taken', () => {
+    render(<Toast />)
+    act(() => toast('已刪除', { label: '復原', onAction: vi.fn() }))
+
+    act(() => { vi.advanceTimersByTime(3000) })
+    expect(screen.getByRole('status')).toBeInTheDocument()
+
+    act(() => { vi.advanceTimersByTime(3000) })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
 })
