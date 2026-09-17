@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { Day, TripEvent, ForkItem, TripMember } from '../types'
 import { createEvent, updateEvent, deleteEvent, moveEvent, reorderEvents, addGuest } from '../lib/db'
+import { CATEGORIES, CATEGORY_IMAGE, CATEGORY_LABEL, eventCategory, type Category } from '../lib/category'
 import { groupEmails } from '../lib/fork'
 import { fmtMD } from '../lib/dates'
 import { uploadEventImage } from '../lib/storage'
@@ -38,6 +39,8 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
   const [timeEnd, setTimeEnd] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  /** null leaves the icon to the title guess, which is what most events want. */
+  const [category, setCategory] = useState<Category | null>(null)
   const [forks, setForks] = useState<ForkItem[]>([emptyFork(), emptyFork()])
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
@@ -58,6 +61,7 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
     setTimeEnd(event?.time_end ?? '')
     setLocation(event?.location ?? '')
     setNotes(event?.notes ?? '')
+    setCategory(event?.category ?? null)
     // Defaults fill in fields a group saved by an older build does not have. Only current
     // members stay in a group: a removed companion has no chip, so could never be taken out.
     const items = (event?.fork_items ?? []).map((item) => ({
@@ -158,8 +162,9 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
         sort_order: isEdit ? event!.sort_order : events.length,
       }
       const data: Omit<TripEvent, 'id'> = type === 'shared'
-        ? { ...base, title, location, notes, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
-        : { ...base, title: '', location: '', notes: '', fork_items: forks, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
+        ? { ...base, title, location, notes, category, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
+        // A split has no title of its own, so no icon to pick either
+        : { ...base, title: '', location: '', notes: '', category: null, fork_items: forks, image_url: resolvedImageUrl, link_urls: cleanLinks(links) }
 
       if (isEdit) {
         const result = await updateEvent(event!.id, data)
@@ -328,6 +333,28 @@ export function EventSheet({ open, event, dayId, tripId, events, members = [], d
               {blockedReason && type === 'shared' && (
                 <p className="text-[11px] text-danger mt-1">{blockedReason}</p>
               )}
+            </div>
+            {/* The icon is guessed from the title as you type; tapping one pins it. */}
+            <div className="mb-3">
+              <p className={labelCls}>類型</p>
+              <div role="group" aria-label="行程類型" className="flex flex-wrap gap-1.5">
+                {CATEGORIES.map((c) => {
+                  const on = c === (category ?? eventCategory(title))
+                  return (
+                    <button
+                      key={c}
+                      onClick={() => setCategory(c)}
+                      aria-pressed={on}
+                      className={`flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                        on ? 'bg-primary text-white' : 'bg-bg text-text-secondary'
+                      }`}
+                    >
+                      <img src={CATEGORY_IMAGE[c]} alt="" aria-hidden="true" className="w-3.5 h-3.5" />
+                      {CATEGORY_LABEL[c]}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
             {timeFields}
             <div className="mb-3">

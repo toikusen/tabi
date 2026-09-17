@@ -341,6 +341,30 @@ describe('EventSheet', () => {
     expect(onClose).not.toHaveBeenCalled()
   })
 
+  it('saves the picked category instead of the one guessed from the title', async () => {
+    const onClose = vi.fn()
+    render(
+      <EventSheet open={true} event={sharedEvent} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={onClose} />
+    )
+    fireEvent.click(screen.getByRole('button', { name: /購物/ }))
+    fireEvent.click(screen.getByRole('button', { name: '儲存' }))
+
+    await waitFor(() =>
+      expect(updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({ category: 'shopping' }))
+    )
+  })
+
+  it('leaves the category null when none is picked, so the guess stands', async () => {
+    render(
+      <EventSheet open={true} event={sharedEvent} dayId="d1" tripId="t1" events={[sharedEvent]} onClose={vi.fn()} />
+    )
+    fireEvent.click(screen.getByRole('button', { name: '儲存' }))
+
+    await waitFor(() =>
+      expect(updateEvent).toHaveBeenCalledWith('e1', expect.objectContaining({ category: null }))
+    )
+  })
+
   it('keeps the sheet open and toasts when deleteEvent fails', async () => {
     vi.mocked(deleteEvent).mockResolvedValueOnce({ ok: false, error: 'boom' })
     const onClose = vi.fn()

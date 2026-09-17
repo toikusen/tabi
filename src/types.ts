@@ -1,3 +1,5 @@
+import type { Category } from './lib/category'
+
 export interface ForkItem {
   /** Members in this group, by email so a rename keeps them in it */
   emails: string[]
@@ -23,6 +25,8 @@ export interface TripEvent {
   image_url?: string | null
   /** http(s) only (migration 014) */
   link_urls?: string[]
+  /** Overrides the icon guessed from the title; null keeps the guess (migration 022) */
+  category?: Category | null
 }
 
 export interface Day {

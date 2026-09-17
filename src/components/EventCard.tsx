@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { TripEvent } from '../types'
 import { mapsUrl } from '../lib/dates'
-import { CATEGORY_IMAGE, eventCategory } from '../lib/category'
+import { CATEGORY_IMAGE, resolveCategory } from '../lib/category'
 import { Icon } from './Icon'
 
 interface Props {
@@ -33,11 +33,11 @@ export function EventCard({ event, clashes = false, onClick }: Props) {
       className="w-full bg-white rounded-[12px] py-3 pl-8 pr-3 shadow-card text-left active:opacity-70 transition-opacity"
     >
       <div className="flex items-start gap-2.5">
-        {/* The row's visual anchor. Guessed from the title, so it is decorative
-            only — the title right next to it always carries the real meaning. */}
+        {/* The row's visual anchor. Picked, or guessed from the title, so it is
+            decorative only — the title next to it carries the real meaning. */}
         <span className="mt-0.5 shrink-0 w-8 h-8 rounded-[9px] bg-bg flex items-center justify-center">
           <img
-            src={CATEGORY_IMAGE[eventCategory(event.title)]}
+            src={CATEGORY_IMAGE[resolveCategory(event)]}
             alt=""
             aria-hidden="true"
             draggable={false}

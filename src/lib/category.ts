@@ -46,3 +46,27 @@ const RULES: [RegExp, Category][] = [
 export function eventCategory(title: string): Category {
   return RULES.find(([re]) => re.test(title))?.[1] ?? 'pin'
 }
+
+/** Picker order and wording; `pin` last, as the "none of these" option. */
+export const CATEGORY_LABEL: Record<Category, string> = {
+  sight: '景點',
+  food: '吃飯',
+  transport: '交通',
+  lodging: '住宿',
+  shopping: '購物',
+  pin: '其他',
+}
+
+export const CATEGORIES = Object.keys(CATEGORY_LABEL) as Category[]
+
+/**
+ * The icon an event actually shows: the one it was given, else the guess.
+ *
+ * A category saved by a build that had a name this one does not falls back to
+ * the guess rather than rendering nothing.
+ */
+export function resolveCategory(event: { title: string; category?: Category | null }): Category {
+  return event.category && event.category in CATEGORY_IMAGE
+    ? event.category
+    : eventCategory(event.title)
+}
