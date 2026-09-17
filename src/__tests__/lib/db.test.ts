@@ -352,19 +352,45 @@ describe('reorderEvents', () => {
 })
 
 describe('listMyTrips', () => {
-  it('selects trips without a server-side order (ordering is client-side)', async () => {
-    const mockSelect = vi.fn().mockResolvedValue({
-      data: [{ id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05', owner_email: 'sei@test.com' }],
-      error: null,
-    })
-    mockFrom.mockReturnValue({ select: mockSelect })
+  /** select().not().order().limit() — the chain resolves at the end, no server-side
+   *  order on the trips themselves: that grouping is client-side (sortTrips). */
+  const mockQuery = (rows: unknown[]) => {
+    const chain: Record<string, unknown> = {}
+    const resolved = Promise.resolve({ data: rows, error: null })
+    const select = vi.fn().mockReturnValue(chain)
+    chain.not = vi.fn().mockReturnValue(chain)
+    chain.order = vi.fn().mockReturnValue(chain)
+    chain.limit = vi.fn().mockReturnValue(resolved)
+    mockFrom.mockReturnValue({ select })
+    return { select, chain }
+  }
+
+  it('selects trips with one cover image each', async () => {
+    const { select, chain } = mockQuery([
+      {
+        id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05',
+        owner_email: 'sei@test.com', events: [{ image_url: 'https://img/1.jpg' }],
+      },
+    ])
 
     const trips = await listMyTrips()
 
     expect(mockFrom).toHaveBeenCalledWith('trips')
-    expect(mockSelect).toHaveBeenCalledWith('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url)')
+    expect(select).toHaveBeenCalledWith(expect.stringContaining('events(image_url)'))
+    expect(chain.limit).toHaveBeenCalledWith(1, { referencedTable: 'events' })
+    // sort_order ties across days, so the id has to settle it or the cover changes
+    expect(chain.order).toHaveBeenCalledWith('id', { referencedTable: 'events' })
     expect(trips).toHaveLength(1)
     expect(trips[0].id).toBe('t1')
+    expect(trips[0].cover_image_url).toBe('https://img/1.jpg')
+  })
+
+  it('leaves the cover null for a trip whose events have no image', async () => {
+    mockQuery([
+      { id: 't1', name: 'Tokyo', start_date: '2026-08-01', end_date: '2026-08-05', owner_email: 'sei@test.com', events: [] },
+    ])
+
+    expect((await listMyTrips())[0].cover_image_url).toBeNull()
   })
 })
 

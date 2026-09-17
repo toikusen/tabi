@@ -83,13 +83,25 @@ export async function mergeGuest(tripId: string, guest: string, member: string):
 
 export type TripSummary = Pick<Trip, 'id' | 'name' | 'start_date' | 'end_date' | 'owner_email'> & {
   members: TripMember[]
+  /** First event photo of the trip, for the list card; null when it has none. */
+  cover_image_url: string | null
 }
 
 export async function listMyTrips(): Promise<TripSummary[]> {
-  // RLS (trips_read) already restricts rows to trips the caller is a member of
+  // RLS (trips_read) already restricts rows to trips the caller is a member of.
+  // The embedded events are filtered and capped to one row per trip, so the
+  // cover costs a column rather than every event of every trip.
+  //
+  // sort_order restarts at 0 on every day, so two days with a photo tie; the id
+  // breaks it. Without that the cover is whichever row the planner happened to
+  // return, and the card changes picture between visits.
   const { data, error } = await supabase
     .from('trips')
-    .select('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url)')
+    .select('id, name, start_date, end_date, owner_email, trip_members(user_email, display_name, avatar_url), events(image_url)')
+    .not('events.image_url', 'is', null)
+    .order('sort_order', { referencedTable: 'events' })
+    .order('id', { referencedTable: 'events' })
+    .limit(1, { referencedTable: 'events' })
   if (error) throw new Error(error.message)
   return (data ?? []).map((t: Record<string, unknown>) => ({
     id: t.id as string,
@@ -97,6 +109,7 @@ export async function listMyTrips(): Promise<TripSummary[]> {
     start_date: t.start_date as string,
     end_date: t.end_date as string,
     owner_email: (t.owner_email as string) ?? '',
+    cover_image_url: ((t.events ?? []) as { image_url: string | null }[])[0]?.image_url ?? null,
     members: ((t.trip_members ?? []) as { user_email: string; display_name: string; avatar_url: string }[]).map(m => ({
       email: m.user_email,
       display_name: m.display_name,
